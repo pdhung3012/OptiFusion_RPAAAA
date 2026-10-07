@@ -1,4 +1,4 @@
-/**
+/***********************************************
  * This version is stamped on May 10, 2016
  *
  * Contact:
@@ -6,7 +6,7 @@
  *   Tomofumi Yuki <tomofumi.yuki.fr>
  *
  * Web address: http://polybench.sourceforge.net
- */
+ ***********************************************/
 /* adi.c: this file is part of PolyBench/C */
 
 #include <stdio.h>
@@ -76,73 +76,57 @@ void kernel_adi(int tsteps, int n,
   DATA_TYPE mul1, mul2;
   DATA_TYPE a, b, c, d, e, f;
 
-  /* ppcg generated CPU code */
-  
-  #define ppcg_min(x,y)    ({ __typeof__(x) _x = (x); __typeof__(y) _y = (y); _x < _y ? _x : _y; })
-  #define ppcg_max(x,y)    ({ __typeof__(x) _x = (x); __typeof__(y) _y = (y); _x > _y ? _x : _y; })
-  {
-    B1 = 2.;
-    DT = (1. / ((double) (tsteps)));
-    DX = (1. / ((double) (n)));
-    mul1 = ((B1 * DT) / (DX * DX));
-    a = ((-mul1) / 2.);
-    DY = (1. / ((double) (n)));
-    B2 = 1.;
-    mul2 = ((B2 * DT) / (DY * DY));
-    d = ((-mul2) / 2.);
-    e = (1. + mul2);
-    b = (1. + mul1);
-    c = a;
-    f = d;
-    for (int c0 = 1; c0 <= tsteps; c0 += 1) {
-      #pragma omp parallel for
-      for (int c1 = 0; c1 < n - 2; c1 += 32)
-        for (int c2 = 0; c2 < n - 1; c2 += 32)
-          for (int c3 = 0; c3 <= ppcg_min(31, n - c1 - 3); c3 += 1) {
-            if (c2 == 0) {
-              v[0][c1 + c3 + 1] = 1.;
-              q[c1 + c3 + 1][0] = v[0][c1 + c3 + 1];
-              p[c1 + c3 + 1][0] = 0.;
-            }
-            for (int c4 = ppcg_max(0, -c2 + 1); c4 <= ppcg_min(31, n - c2 - 2); c4 += 1) {
-              p[c1 + c3 + 1][c2 + c4] = ((-c) / ((a * p[c1 + c3 + 1][c2 + c4 - 1]) + b));
-              q[c1 + c3 + 1][c2 + c4] = ((((((-d) * u[c2 + c4][c1 + c3]) + ((1. + (2. * d)) * u[c2 + c4][c1 + c3 + 1])) - (f * u[c2 + c4][c1 + c3 + 2])) - (a * q[c1 + c3 + 1][c2 + c4 - 1])) / ((a * p[c1 + c3 + 1][c2 + c4 - 1]) + b));
-            }
-          }
-      #pragma omp parallel for
-      for (int c1 = 0; c1 < n - 2; c1 += 32)
-        for (int c2 = 0; c2 < n - 1; c2 += 32)
-          for (int c3 = 0; c3 <= ppcg_min(31, n - c1 - 3); c3 += 1) {
-            if (c2 == 0)
-              v[n - 1][c1 + c3 + 1] = 1.;
-            for (int c4 = ppcg_max(0, -c2 + 1); c4 <= ppcg_min(31, n - c2 - 2); c4 += 1)
-              v[n - c2 - c4 - 1][c1 + c3 + 1] = ((p[c1 + c3 + 1][n - c2 - c4 - 1] * v[n - c2 - c4][c1 + c3 + 1]) + q[c1 + c3 + 1][n - c2 - c4 - 1]);
-          }
-      #pragma omp parallel for
-      for (int c1 = 0; c1 < n - 2; c1 += 32)
-        for (int c2 = 0; c2 < n - 1; c2 += 32)
-          for (int c3 = 0; c3 <= ppcg_min(31, n - c1 - 3); c3 += 1) {
-            if (c2 == 0) {
-              p[c1 + c3 + 1][0] = 0.;
-              u[c1 + c3 + 1][0] = 1.;
-              q[c1 + c3 + 1][0] = u[c1 + c3 + 1][0];
-            }
-            for (int c4 = ppcg_max(0, -c2 + 1); c4 <= ppcg_min(31, n - c2 - 2); c4 += 1) {
-              p[c1 + c3 + 1][c2 + c4] = ((-f) / ((d * p[c1 + c3 + 1][c2 + c4 - 1]) + e));
-              q[c1 + c3 + 1][c2 + c4] = ((((((-a) * v[c1 + c3][c2 + c4]) + ((1. + (2. * a)) * v[c1 + c3 + 1][c2 + c4])) - (c * v[c1 + c3 + 2][c2 + c4])) - (d * q[c1 + c3 + 1][c2 + c4 - 1])) / ((d * p[c1 + c3 + 1][c2 + c4 - 1]) + e));
-            }
-          }
-      #pragma omp parallel for
-      for (int c1 = 0; c1 < n - 2; c1 += 32)
-        for (int c2 = 0; c2 < n - 1; c2 += 32)
-          for (int c3 = 0; c3 <= ppcg_min(31, n - c1 - 3); c3 += 1) {
-            if (c2 == 0)
-              u[c1 + c3 + 1][n - 1] = 1.;
-            for (int c4 = ppcg_max(0, -c2 + 1); c4 <= ppcg_min(31, n - c2 - 2); c4 += 1)
-              u[c1 + c3 + 1][n - c2 - c4 - 1] = ((p[c1 + c3 + 1][n - c2 - c4 - 1] * u[c1 + c3 + 1][n - c2 - c4]) + q[c1 + c3 + 1][n - c2 - c4 - 1]);
-          }
+#pragma scop
+
+  DX = SCALAR_VAL(1.0)/(DATA_TYPE)_PB_N;
+  DY = SCALAR_VAL(1.0)/(DATA_TYPE)_PB_N;
+  DT = SCALAR_VAL(1.0)/(DATA_TYPE)_PB_TSTEPS;
+  B1 = SCALAR_VAL(2.0);
+  B2 = SCALAR_VAL(1.0);
+  mul1 = B1 * DT / (DX * DX);
+  mul2 = B2 * DT / (DY * DY);
+
+  a = -mul1 /  SCALAR_VAL(2.0);
+  b = SCALAR_VAL(1.0)+mul1;
+  c = a;
+  d = -mul2 / SCALAR_VAL(2.0);
+  e = SCALAR_VAL(1.0)+mul2;
+  f = d;
+
+ for (t=1; t<=_PB_TSTEPS; t++) {
+    //Column Sweep
+    #pragma omp parallel for private(j) schedule(static)
+    for (i=1; i<_PB_N-1; i++) {
+      v[0][i] = SCALAR_VAL(1.0);
+      p[i][0] = SCALAR_VAL(0.0);
+      q[i][0] = v[0][i];
+      for (j=1; j<_PB_N-1; j++) {
+        p[i][j] = -c / (a*p[i][j-1]+b);
+        q[i][j] = (-d*u[j][i-1]+(SCALAR_VAL(1.0)+SCALAR_VAL(2.0)*d)*u[j][i] - f*u[j][i+1]-a*q[i][j-1])/(a*p[i][j-1]+b);
+      }
+
+      v[_PB_N-1][i] = SCALAR_VAL(1.0);
+      for (j=_PB_N-2; j>=1; j--) {
+        v[j][i] = p[i][j] * v[j+1][i] + q[i][j];
+      }
+    }
+    //Row Sweep
+    #pragma omp parallel for private(j) schedule(static)
+    for (i=1; i<_PB_N-1; i++) {
+      u[i][0] = SCALAR_VAL(1.0);
+      p[i][0] = SCALAR_VAL(0.0);
+      q[i][0] = u[i][0];
+      for (j=1; j<_PB_N-1; j++) {
+        p[i][j] = -f / (d*p[i][j-1]+e);
+        q[i][j] = (-a*v[i-1][j]+(SCALAR_VAL(1.0)+SCALAR_VAL(2.0)*a)*v[i][j] - c*v[i+1][j]-d*q[i][j-1])/(d*p[i][j-1]+e);
+      }
+      u[i][_PB_N-1] = SCALAR_VAL(1.0);
+      for (j=_PB_N-2; j>=1; j--) {
+        u[i][j] = p[i][j] * u[i][j+1] + q[i][j];
+      }
     }
   }
+#pragma endscop
 }
 
 

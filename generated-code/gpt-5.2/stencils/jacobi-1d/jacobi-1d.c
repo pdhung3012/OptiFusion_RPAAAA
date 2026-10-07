@@ -1,12 +1,12 @@
-/**
- * This version is stamped on May 10, 2016
- *
- * Contact:
- *   Louis-Noel Pouchet <pouchet.ohio-state.edu>
- *   Tomofumi Yuki <tomofumi.yuki.fr>
- *
- * Web address: http://polybench.sourceforge.net
- */
+/*************************************************/
+/* This version is stamped on May 10, 2016       */
+/*                                               */
+/* Contact:                                      */
+/*   Louis-Noel Pouchet <pouchet.ohio-state.edu> */
+/*   Tomofumi Yuki <tomofumi.yuki.fr>            */
+/*                                               */
+/* Web address: http://polybench.sourceforge.net */
+/*************************************************/
 /* jacobi-1d.c: this file is part of PolyBench/C */
 
 #include <stdio.h>
@@ -68,20 +68,18 @@ void kernel_jacobi_1d(int tsteps,
 {
   int t, i;
 
-  /* ppcg generated CPU code */
-  
-  #define ppcg_min(x,y)    ({ __typeof__(x) _x = (x); __typeof__(y) _y = (y); _x < _y ? _x : _y; })
-  #define ppcg_max(x,y)    ({ __typeof__(x) _x = (x); __typeof__(y) _y = (y); _x > _y ? _x : _y; })
-  if (n >= 3)
-    for (int c0 = 0; c0 < tsteps; c0 += 32)
-      for (int c1 = 2 * c0; c1 <= ppcg_min(2 * tsteps + n - 4, n + 2 * c0 + 60); c1 += 32)
-        for (int c2 = ppcg_max(0, -n - c0 + (n + c1 + 1) / 2 + 1); c2 <= ppcg_min(ppcg_min(31, tsteps - c0 - 1), (c1 / 2) - c0 + 15); c2 += 1)
-          for (int c3 = ppcg_max(0, 2 * c0 - c1 + 2 * c2); c3 <= ppcg_min(31, n + 2 * c0 - c1 + 2 * c2 - 2); c3 += 1) {
-            if (n + 2 * c0 + 2 * c2 >= c1 + c3 + 3)
-              B[-2 * c0 + c1 - 2 * c2 + c3 + 1] = (0.33333 * ((A[-2 * c0 + c1 - 2 * c2 + c3] + A[-2 * c0 + c1 - 2 * c2 + c3 + 1]) + A[-2 * c0 + c1 - 2 * c2 + c3 + 2]));
-            if (c1 + c3 >= 2 * c0 + 2 * c2 + 1)
-              A[-2 * c0 + c1 - 2 * c2 + c3] = (0.33333 * ((B[-2 * c0 + c1 - 2 * c2 + c3 - 1] + B[-2 * c0 + c1 - 2 * c2 + c3]) + B[-2 * c0 + c1 - 2 * c2 + c3 + 1]));
-          }
+#pragma scop
+#pragma omp parallel private(t, i)
+  for (t = 0; t < _PB_TSTEPS; t++)
+    {
+#pragma omp for
+      for (i = 1; i < _PB_N - 1; i++)
+	B[i] = 0.33333 * (A[i-1] + A[i] + A[i + 1]);
+#pragma omp for
+      for (i = 1; i < _PB_N - 1; i++)
+	A[i] = 0.33333 * (B[i-1] + B[i] + B[i + 1]);
+    }
+#pragma endscop
 
 }
 

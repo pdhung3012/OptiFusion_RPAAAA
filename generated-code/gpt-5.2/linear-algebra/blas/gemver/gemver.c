@@ -1,4 +1,4 @@
-/**
+/*******************************************
  * This version is stamped on May 10, 2016
  *
  * Contact:
@@ -96,32 +96,36 @@ void kernel_gemver(int n,
 {
   int i, j;
 
-  /* ppcg generated CPU code */
-  
-  #define ppcg_min(x,y)    ({ __typeof__(x) _x = (x); __typeof__(y) _y = (y); _x < _y ? _x : _y; })
-  {
-    #pragma omp parallel for
-    for (int c0 = 0; c0 < n; c0 += 32)
-      for (int c1 = 0; c1 < n; c1 += 32)
-        for (int c2 = 0; c2 <= ppcg_min(31, n - c0 - 1); c2 += 1)
-          for (int c3 = 0; c3 <= ppcg_min(31, n - c1 - 1); c3 += 1)
-            A[c0 + c2][c1 + c3] = ((A[c0 + c2][c1 + c3] + (u1[c0 + c2] * v1[c1 + c3])) + (u2[c0 + c2] * v2[c1 + c3]));
-    #pragma omp parallel for
-    for (int c0 = 0; c0 < n; c0 += 32)
-      for (int c1 = 0; c1 <= n; c1 += 32)
-        for (int c2 = 0; c2 <= ppcg_min(31, n - c0 - 1); c2 += 1) {
-          for (int c3 = 0; c3 <= ppcg_min(31, n - c1 - 1); c3 += 1)
-            x[c0 + c2] = (x[c0 + c2] + ((beta * A[c1 + c3][c0 + c2]) * y[c1 + c3]));
-          if (c1 + 31 >= n)
-            x[c0 + c2] = (x[c0 + c2] + z[c0 + c2]);
-        }
-    #pragma omp parallel for
-    for (int c0 = 0; c0 < n; c0 += 32)
-      for (int c1 = 0; c1 < n; c1 += 32)
-        for (int c2 = 0; c2 <= ppcg_min(31, n - c0 - 1); c2 += 1)
-          for (int c3 = 0; c3 <= ppcg_min(31, n - c1 - 1); c3 += 1)
-            w[c0 + c2] = (w[c0 + c2] + ((alpha * A[c0 + c2][c1 + c3]) * x[c1 + c3]));
-  }
+#pragma scop
+
+#pragma omp parallel for collapse(2) private(i,j) schedule(static)
+  for (i = 0; i < _PB_N; i++)
+    for (j = 0; j < _PB_N; j++)
+      A[i][j] = A[i][j] + u1[i] * v1[j] + u2[i] * v2[j];
+
+#pragma omp parallel for private(i,j) schedule(static)
+  for (i = 0; i < _PB_N; i++)
+    {
+      DATA_TYPE tmp = x[i];
+      for (j = 0; j < _PB_N; j++)
+        tmp = tmp + beta * A[j][i] * y[j];
+      x[i] = tmp;
+    }
+
+#pragma omp parallel for private(i) schedule(static)
+  for (i = 0; i < _PB_N; i++)
+    x[i] = x[i] + z[i];
+
+#pragma omp parallel for private(i,j) schedule(static)
+  for (i = 0; i < _PB_N; i++)
+    {
+      DATA_TYPE tmp = w[i];
+      for (j = 0; j < _PB_N; j++)
+        tmp = tmp +  alpha * A[i][j] * x[j];
+      w[i] = tmp;
+    }
+
+#pragma endscop
 }
 
 

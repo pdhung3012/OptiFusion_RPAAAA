@@ -84,23 +84,20 @@ void kernel_mvt(int n,
 {
   int i, j;
 
-  /* ppcg generated CPU code */
-  
-  #define ppcg_min(x,y)    ({ __typeof__(x) _x = (x); __typeof__(y) _y = (y); _x < _y ? _x : _y; })
+#pragma scop
+#pragma omp parallel
   {
-    #pragma omp parallel for
-    for (int c0 = 0; c0 < n; c0 += 32)
-      for (int c1 = 0; c1 < n; c1 += 32)
-        for (int c2 = 0; c2 <= ppcg_min(31, n - c0 - 1); c2 += 1)
-          for (int c3 = 0; c3 <= ppcg_min(31, n - c1 - 1); c3 += 1)
-            x1[c0 + c2] = (x1[c0 + c2] + (A[c0 + c2][c1 + c3] * y_1[c1 + c3]));
-    #pragma omp parallel for
-    for (int c0 = 0; c0 < n; c0 += 32)
-      for (int c1 = 0; c1 < n; c1 += 32)
-        for (int c2 = 0; c2 <= ppcg_min(31, n - c0 - 1); c2 += 1)
-          for (int c3 = 0; c3 <= ppcg_min(31, n - c1 - 1); c3 += 1)
-            x2[c0 + c2] = (x2[c0 + c2] + (A[c1 + c3][c0 + c2] * y_2[c1 + c3]));
+#pragma omp for schedule(static) private(j)
+    for (i = 0; i < _PB_N; i++)
+      for (j = 0; j < _PB_N; j++)
+        x1[i] = x1[i] + A[i][j] * y_1[j];
+
+#pragma omp for schedule(static) private(j)
+    for (i = 0; i < _PB_N; i++)
+      for (j = 0; j < _PB_N; j++)
+        x2[i] = x2[i] + A[j][i] * y_2[j];
   }
+#pragma endscop
 
 }
 

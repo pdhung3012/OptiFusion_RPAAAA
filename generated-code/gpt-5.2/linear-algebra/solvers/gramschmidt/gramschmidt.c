@@ -1,4 +1,4 @@
-/**
+/*************************************************************************************
  * This version is stamped on May 10, 2016
  *
  * Contact:
@@ -85,63 +85,42 @@ void kernel_gramschmidt(int m, int n,
 
   DATA_TYPE nrm;
 
-  /* ppcg generated CPU code */
-  
-  #define ppcg_min(x,y)    ({ __typeof__(x) _x = (x); __typeof__(y) _y = (y); _x < _y ? _x : _y; })
-  #define ppcg_max(x,y)    ({ __typeof__(x) _x = (x); __typeof__(y) _y = (y); _x > _y ? _x : _y; })
-  {
-    #pragma omp parallel for
-    for (int c0 = 0; c0 < n - 1; c0 += 32)
-      for (int c1 = c0; c1 < n - 1; c1 += 32)
-        for (int c2 = 0; c2 <= ppcg_min(31, n - c0 - 2); c2 += 1)
-          for (int c3 = ppcg_max(0, c0 - c1 + c2); c3 <= ppcg_min(31, n - c1 - 2); c3 += 1)
-            R[c0 + c2][c1 + c3 + 1] = 0.;
-    for (int c0 = 0; c0 < n; c0 += 32)
-      for (int c1 = c0; c1 < n; c1 += 32) {
-        if (m >= 1) {
-          for (int c2 = 0; c2 <= ppcg_min(ppcg_min(31, n - c0 - 2), -c0 + c1 + 30); c2 += 1) {
-            if (c1 == c0) {
-              nrm = 0.;
-              for (int c4 = 0; c4 < m; c4 += 1)
-                nrm += (A[c4][c0 + c2] * A[c4][c0 + c2]);
-              R[c0 + c2][c0 + c2] = sqrt(nrm);
-              #pragma omp parallel for
-              for (int c4 = 0; c4 < m; c4 += 1)
-                Q[c4][c0 + c2] = (A[c4][c0 + c2] / R[c0 + c2][c0 + c2]);
-            }
-            #pragma omp parallel for
-            for (int c3 = ppcg_max(0, c0 - c1 + c2 + 1); c3 <= ppcg_min(31, n - c1 - 1); c3 += 1) {
-              for (int c4 = 0; c4 < m; c4 += 1)
-                R[c0 + c2][c1 + c3] += (Q[c4][c0 + c2] * A[c4][c1 + c3]);
-              for (int c4 = 0; c4 < m; c4 += 1)
-                A[c4][c1 + c3] = (A[c4][c1 + c3] - (Q[c4][c0 + c2] * R[c0 + c2][c1 + c3]));
-            }
-          }
-          if (c0 + 31 >= n && c1 == c0) {
-            nrm = 0.;
-            for (int c4 = 0; c4 < m; c4 += 1)
-              nrm += (A[c4][n - 1] * A[c4][n - 1]);
-            R[n - 1][n - 1] = sqrt(nrm);
-            #pragma omp parallel for
-            for (int c4 = 0; c4 < m; c4 += 1)
-              Q[c4][n - 1] = (A[c4][n - 1] / R[n - 1][n - 1]);
-          } else if (n >= c0 + 32 && c1 == c0) {
-            nrm = 0.;
-            for (int c4 = 0; c4 < m; c4 += 1)
-              nrm += (A[c4][c0 + 31] * A[c4][c0 + 31]);
-            R[c0 + 31][c0 + 31] = sqrt(nrm);
-            #pragma omp parallel for
-            for (int c4 = 0; c4 < m; c4 += 1)
-              Q[c4][c0 + 31] = (A[c4][c0 + 31] / R[c0 + 31][c0 + 31]);
-          }
-        } else if (c1 == c0) {
-          for (int c2 = 0; c2 <= ppcg_min(31, n - c0 - 1); c2 += 1) {
-            nrm = 0.;
-            R[c0 + c2][c0 + c2] = sqrt(nrm);
-          }
-        }
+#pragma scop
+  for (k = 0; k < _PB_N; k++)
+    {
+      nrm = SCALAR_VAL(0.0);
+
+#pragma omp parallel private(i, j) shared(A, R, Q, k, nrm)
+      {
+#pragma omp for reduction(+:nrm)
+        for (i = 0; i < _PB_M; i++)
+          nrm += A[i][k] * A[i][k];
+
+#pragma omp single
+        R[k][k] = SQRT_FUN(nrm);
+
+#pragma omp for
+        for (i = 0; i < _PB_M; i++)
+          Q[i][k] = A[i][k] / R[k][k];
+
+#pragma omp for
+        for (j = k + 1; j < _PB_N; j++)
+	  {
+	    DATA_TYPE rtmp = SCALAR_VAL(0.0);
+
+#pragma omp simd reduction(+:rtmp)
+	    for (i = 0; i < _PB_M; i++)
+	      rtmp += Q[i][k] * A[i][j];
+
+	    R[k][j] = rtmp;
+
+#pragma omp simd
+	    for (i = 0; i < _PB_M; i++)
+	      A[i][j] = A[i][j] - Q[i][k] * rtmp;
+	  }
       }
-  }
+    }
+#pragma endscop
 
 }
 

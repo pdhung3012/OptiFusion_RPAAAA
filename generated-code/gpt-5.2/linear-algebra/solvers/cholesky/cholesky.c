@@ -1,4 +1,4 @@
-/**
+/**************************
  * This version is stamped on May 10, 2016
  *
  * Contact:
@@ -86,66 +86,38 @@ void kernel_cholesky(int n,
   int i, j, k;
 
 
-  /* ppcg generated CPU code */
-  
-  #define ppcg_min(x,y)    ({ __typeof__(x) _x = (x); __typeof__(y) _y = (y); _x < _y ? _x : _y; })
-  #define ppcg_max(x,y)    ({ __typeof__(x) _x = (x); __typeof__(y) _y = (y); _x > _y ? _x : _y; })
-  for (int c0 = 0; c0 < n; c0 += 32)
-    for (int c1 = c0; c1 < n; c1 += 32)
-      for (int c2 = c0; c2 <= c1 + 30; c2 += 32) {
-        if (n >= c2 + 2) {
-          for (int c3 = 0; c3 <= ppcg_min(ppcg_min(ppcg_min(31, n - c0 - 3), -c0 + c1 + 29), -c0 + c2 + 30); c3 += 1) {
-            if (c1 == c0 && c2 == c0) {
-              A[c0 + c3][c0 + c3] = sqrt(A[c0 + c3][c0 + c3]);
-            } else if (c2 == c1 && c1 >= c0 + c3 + 2) {
-              A[c1][c1] -= (A[c1][c0 + c3] * A[c1][c0 + c3]);
-            }
-            if (c2 == c1 && c0 + c3 + 1 >= c1) {
-              if (c1 == c0)
-                A[c0 + c3 + 1][c0 + c3] /= A[c0 + c3][c0 + c3];
-              A[c0 + c3 + 1][c0 + c3 + 1] -= (A[c0 + c3 + 1][c0 + c3] * A[c0 + c3 + 1][c0 + c3]);
-            }
-            for (int c4 = ppcg_max(ppcg_max(0, -c1 + c2 + 1), c0 - c1 + c3 + 2); c4 <= ppcg_min(31, n - c1 - 1); c4 += 1) {
-              if (c2 == c0)
-                A[c1 + c4][c0 + c3] /= A[c0 + c3][c0 + c3];
-              #pragma omp parallel for
-              for (int c5 = ppcg_max(0, c0 - c2 + c3 + 1); c5 <= ppcg_min(31, c1 - c2 + c4 - 1); c5 += 1)
-                A[c1 + c4][c2 + c5] -= (A[c1 + c4][c0 + c3] * A[c2 + c5][c0 + c3]);
-              if (c2 == c1)
-                A[c1 + c4][c1 + c4] -= (A[c1 + c4][c0 + c3] * A[c1 + c4][c0 + c3]);
-            }
-          }
-          if (n >= c0 + 34 && c1 >= c0 + 32 && c2 == c0) {
-            #pragma omp parallel for
-            for (int c4 = 0; c4 <= ppcg_min(31, n - c1 - 1); c4 += 1)
-              if (c1 + c4 >= c0 + 32)
-                A[c1 + c4][c0 + 31] /= A[c0 + 31][c0 + 31];
-          } else if (c0 + 33 == n && c1 + 1 == n && c2 + 33 == n) {
-            A[n - 1][n - 2] /= A[n - 2][n - 2];
-          } else if (n >= c0 + 33 && c1 == c0 && c2 == c0) {
-            A[c0 + 30][c0 + 30] = sqrt(A[c0 + 30][c0 + 30]);
-            A[c0 + 31][c0 + 30] /= A[c0 + 30][c0 + 30];
-            A[c0 + 31][c0 + 31] -= (A[c0 + 31][c0 + 30] * A[c0 + 31][c0 + 30]);
-            if (n >= c0 + 34) {
-              A[c0 + 31][c0 + 31] = sqrt(A[c0 + 31][c0 + 31]);
-            } else {
-              A[n - 2][n - 2] = sqrt(A[n - 2][n - 2]);
-            }
-          }
-        } else {
-          for (int c3 = 0; c3 <= ppcg_min(31, n - c0 - 3); c3 += 1)
-            A[n - 1][n - 1] -= (A[n - 1][c0 + c3] * A[n - 1][c0 + c3]);
+#pragma scop
+  for (i = 0; i < _PB_N; i++) {
+     //j<i
+     for (j = 0; j < i; j++) {
+        if (j > 0) {
+           DATA_TYPE* tmp = (DATA_TYPE*)polybench_alloc_data(j, sizeof(DATA_TYPE));
+           #pragma omp parallel for private(k) schedule(static)
+           for (k = 0; k < j; k++) {
+              tmp[k] = A[i][k] * A[j][k];
+           }
+           for (k = 0; k < j; k++) {
+              A[i][j] -= tmp[k];
+           }
+           free(tmp);
         }
-        if (n >= c0 + 2 && c0 + 33 >= n && c1 + 32 >= n && c2 == c1) {
-          if (c1 == c0) {
-            A[n - 2][n - 2] = sqrt(A[n - 2][n - 2]);
-            A[n - 1][n - 2] /= A[n - 2][n - 2];
-          }
-          A[n - 1][n - 1] -= (A[n - 1][n - 2] * A[n - 1][n - 2]);
+        A[i][j] /= A[j][j];
+     }
+     // i==j case
+     if (i > 0) {
+        DATA_TYPE* tmp2 = (DATA_TYPE*)polybench_alloc_data(i, sizeof(DATA_TYPE));
+        #pragma omp parallel for private(k) schedule(static)
+        for (k = 0; k < i; k++) {
+           tmp2[k] = A[i][k] * A[i][k];
         }
-        if (c0 + 32 >= n && c1 == c0 && c2 == c0)
-          A[n - 1][n - 1] = sqrt(A[n - 1][n - 1]);
-      }
+        for (k = 0; k < i; k++) {
+           A[i][i] -= tmp2[k];
+        }
+        free(tmp2);
+     }
+     A[i][i] = SQRT_FUN(A[i][i]);
+  }
+#pragma endscop
 
 }
 

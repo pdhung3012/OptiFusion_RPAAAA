@@ -79,24 +79,20 @@ void kernel_gesummv(int n,
 {
   int i, j;
 
-  /* ppcg generated CPU code */
-  
-  #define ppcg_min(x,y)    ({ __typeof__(x) _x = (x); __typeof__(y) _y = (y); _x < _y ? _x : _y; })
-  #pragma omp parallel for
-  for (int c0 = 0; c0 < n; c0 += 32)
-    for (int c1 = 0; c1 <= n; c1 += 32)
-      for (int c2 = 0; c2 <= ppcg_min(31, n - c0 - 1); c2 += 1) {
-        if (c1 == 0) {
-          y[c0 + c2] = 0.;
-          tmp[c0 + c2] = 0.;
-        }
-        for (int c3 = 0; c3 <= ppcg_min(31, n - c1 - 1); c3 += 1) {
-          tmp[c0 + c2] = ((A[c0 + c2][c1 + c3] * x[c1 + c3]) + tmp[c0 + c2]);
-          y[c0 + c2] = ((B[c0 + c2][c1 + c3] * x[c1 + c3]) + y[c0 + c2]);
-        }
-        if (c1 + 31 >= n)
-          y[c0 + c2] = ((alpha * tmp[c0 + c2]) + (beta * y[c0 + c2]));
-      }
+#pragma scop
+#pragma omp parallel for private(j)
+  for (i = 0; i < _PB_N; i++)
+    {
+      tmp[i] = SCALAR_VAL(0.0);
+      y[i] = SCALAR_VAL(0.0);
+      for (j = 0; j < _PB_N; j++)
+	{
+	  tmp[i] = A[i][j] * x[j] + tmp[i];
+	  y[i] = B[i][j] * x[j] + y[i];
+	}
+      y[i] = alpha * tmp[i] + beta * y[i];
+    }
+#pragma endscop
 
 }
 

@@ -1,5 +1,5 @@
-/**
- * This version is stamped on May 10, 2016
+/******************************************/
+/* This version is stamped on May 10, 2016
  *
  * Contact:
  *   Louis-Noel Pouchet <pouchet.ohio-state.edu>
@@ -68,25 +68,35 @@ void kernel_heat_3d(int tsteps,
 {
   int t, i, j, k;
 
-    /* ppcg generated CPU code */
-    
-    #define ppcg_min(x,y)    ({ __typeof__(x) _x = (x); __typeof__(y) _y = (y); _x < _y ? _x : _y; })
-    #define ppcg_max(x,y)    ({ __typeof__(x) _x = (x); __typeof__(y) _y = (y); _x > _y ? _x : _y; })
-    #define ppcg_fdiv_q(n,d) (((n)<0) ? -((-(n)+(d)-1)/(d)) : (n)/(d))
-    for (int c0 = 0; c0 <= 480; c0 += 32)
-      for (int c1 = 2 * c0; c1 <= ppcg_min(n + 996, n + 2 * c0 + 60); c1 += 32)
-        for (int c2 = ppcg_max(2 * c0, ((n - c1 + 1020) % 32) - n + c1 - 28); c2 <= ppcg_min(ppcg_min(n + 996, n + 2 * c0 + 60), n + c1 + 28); c2 += 32)
-          for (int c3 = ppcg_max(ppcg_max(2 * c0, ((n - c1 + 1020) % 32) - n + c1 - 28), ((n - c2 + 1020) % 32) - n + c2 - 28); c3 <= ppcg_min(ppcg_min(ppcg_min(n + 996, n + 2 * c0 + 60), n + c1 + 28), n + c2 + 28); c3 += 32)
-            for (int c4 = ppcg_max(ppcg_max(ppcg_max(0, -n - c0 + ppcg_fdiv_q(n + c1 + 1, 2) + 1), -n - c0 + ppcg_fdiv_q(n + c2 + 1, 2) + 1), -n - c0 + ppcg_fdiv_q(n + c3 + 1, 2) + 1); c4 <= ppcg_min(ppcg_min(ppcg_min(ppcg_min(31, -c0 + 499), (c1 / 2) - c0 + 15), (c2 / 2) - c0 + 15), (c3 / 2) - c0 + 15); c4 += 1)
-              for (int c5 = ppcg_max(ppcg_max(ppcg_max(0, -n - c1 + c2 + 3), -n - c1 + c3 + 3), 2 * c0 - c1 + 2 * c4); c5 <= ppcg_min(31, n + 2 * c0 - c1 + 2 * c4 - 2); c5 += 1)
-                for (int c6 = ppcg_max(ppcg_max(ppcg_max(0, -n - c2 + c3 + 3), 2 * c0 - c2 + 2 * c4), -n + c1 - c2 + c5 + 3); c6 <= ppcg_min(ppcg_min(31, n + 2 * c0 - c2 + 2 * c4 - 2), n + c1 - c2 + c5 - 3); c6 += 1)
-                  #pragma omp parallel for
-                  for (int c7 = ppcg_max(ppcg_max(ppcg_max(0, 2 * c0 - c3 + 2 * c4), -n + c1 - c3 + c5 + 3), -n + c2 - c3 + c6 + 3); c7 <= ppcg_min(ppcg_min(ppcg_min(31, n + 2 * c0 - c3 + 2 * c4 - 2), n + c1 - c3 + c5 - 3), n + c2 - c3 + c6 - 3); c7 += 1) {
-                    if (n + 2 * c0 + 2 * c4 >= c1 + c5 + 3 && n + 2 * c0 + 2 * c4 >= c2 + c6 + 3 && n + 2 * c0 + 2 * c4 >= c3 + c7 + 3)
-                      B[-2 * c0 + c1 - 2 * c4 + c5 + 1][-2 * c0 + c2 - 2 * c4 + c6 + 1][-2 * c0 + c3 - 2 * c4 + c7 + 1] = ((((0.125 * ((A[-2 * c0 + c1 - 2 * c4 + c5 + 2][-2 * c0 + c2 - 2 * c4 + c6 + 1][-2 * c0 + c3 - 2 * c4 + c7 + 1] - (2. * A[-2 * c0 + c1 - 2 * c4 + c5 + 1][-2 * c0 + c2 - 2 * c4 + c6 + 1][-2 * c0 + c3 - 2 * c4 + c7 + 1])) + A[-2 * c0 + c1 - 2 * c4 + c5][-2 * c0 + c2 - 2 * c4 + c6 + 1][-2 * c0 + c3 - 2 * c4 + c7 + 1])) + (0.125 * ((A[-2 * c0 + c1 - 2 * c4 + c5 + 1][-2 * c0 + c2 - 2 * c4 + c6 + 2][-2 * c0 + c3 - 2 * c4 + c7 + 1] - (2. * A[-2 * c0 + c1 - 2 * c4 + c5 + 1][-2 * c0 + c2 - 2 * c4 + c6 + 1][-2 * c0 + c3 - 2 * c4 + c7 + 1])) + A[-2 * c0 + c1 - 2 * c4 + c5 + 1][-2 * c0 + c2 - 2 * c4 + c6][-2 * c0 + c3 - 2 * c4 + c7 + 1]))) + (0.125 * ((A[-2 * c0 + c1 - 2 * c4 + c5 + 1][-2 * c0 + c2 - 2 * c4 + c6 + 1][-2 * c0 + c3 - 2 * c4 + c7 + 2] - (2. * A[-2 * c0 + c1 - 2 * c4 + c5 + 1][-2 * c0 + c2 - 2 * c4 + c6 + 1][-2 * c0 + c3 - 2 * c4 + c7 + 1])) + A[-2 * c0 + c1 - 2 * c4 + c5 + 1][-2 * c0 + c2 - 2 * c4 + c6 + 1][-2 * c0 + c3 - 2 * c4 + c7]))) + A[-2 * c0 + c1 - 2 * c4 + c5 + 1][-2 * c0 + c2 - 2 * c4 + c6 + 1][-2 * c0 + c3 - 2 * c4 + c7 + 1]);
-                    if (c1 + c5 >= 2 * c0 + 2 * c4 + 1 && c2 + c6 >= 2 * c0 + 2 * c4 + 1 && c3 + c7 >= 2 * c0 + 2 * c4 + 1)
-                      A[-2 * c0 + c1 - 2 * c4 + c5][-2 * c0 + c2 - 2 * c4 + c6][-2 * c0 + c3 - 2 * c4 + c7] = ((((0.125 * ((B[-2 * c0 + c1 - 2 * c4 + c5 + 1][-2 * c0 + c2 - 2 * c4 + c6][-2 * c0 + c3 - 2 * c4 + c7] - (2. * B[-2 * c0 + c1 - 2 * c4 + c5][-2 * c0 + c2 - 2 * c4 + c6][-2 * c0 + c3 - 2 * c4 + c7])) + B[-2 * c0 + c1 - 2 * c4 + c5 - 1][-2 * c0 + c2 - 2 * c4 + c6][-2 * c0 + c3 - 2 * c4 + c7])) + (0.125 * ((B[-2 * c0 + c1 - 2 * c4 + c5][-2 * c0 + c2 - 2 * c4 + c6 + 1][-2 * c0 + c3 - 2 * c4 + c7] - (2. * B[-2 * c0 + c1 - 2 * c4 + c5][-2 * c0 + c2 - 2 * c4 + c6][-2 * c0 + c3 - 2 * c4 + c7])) + B[-2 * c0 + c1 - 2 * c4 + c5][-2 * c0 + c2 - 2 * c4 + c6 - 1][-2 * c0 + c3 - 2 * c4 + c7]))) + (0.125 * ((B[-2 * c0 + c1 - 2 * c4 + c5][-2 * c0 + c2 - 2 * c4 + c6][-2 * c0 + c3 - 2 * c4 + c7 + 1] - (2. * B[-2 * c0 + c1 - 2 * c4 + c5][-2 * c0 + c2 - 2 * c4 + c6][-2 * c0 + c3 - 2 * c4 + c7])) + B[-2 * c0 + c1 - 2 * c4 + c5][-2 * c0 + c2 - 2 * c4 + c6][-2 * c0 + c3 - 2 * c4 + c7 - 1]))) + B[-2 * c0 + c1 - 2 * c4 + c5][-2 * c0 + c2 - 2 * c4 + c6][-2 * c0 + c3 - 2 * c4 + c7]);
-                  }
+#pragma scop
+#pragma omp parallel private(t,i,j,k)
+{
+    for (t = 1; t <= TSTEPS; t++) {
+#pragma omp for collapse(3) schedule(static)
+        for (i = 1; i < _PB_N-1; i++) {
+            for (j = 1; j < _PB_N-1; j++) {
+                for (k = 1; k < _PB_N-1; k++) {
+                    B[i][j][k] =   SCALAR_VAL(0.125) * (A[i+1][j][k] - SCALAR_VAL(2.0) * A[i][j][k] + A[i-1][j][k])
+                                 + SCALAR_VAL(0.125) * (A[i][j+1][k] - SCALAR_VAL(2.0) * A[i][j][k] + A[i][j-1][k])
+                                 + SCALAR_VAL(0.125) * (A[i][j][k+1] - SCALAR_VAL(2.0) * A[i][j][k] + A[i][j][k-1])
+                                 + A[i][j][k];
+                }
+            }
+        }
+#pragma omp for collapse(3) schedule(static)
+        for (i = 1; i < _PB_N-1; i++) {
+           for (j = 1; j < _PB_N-1; j++) {
+               for (k = 1; k < _PB_N-1; k++) {
+                   A[i][j][k] =   SCALAR_VAL(0.125) * (B[i+1][j][k] - SCALAR_VAL(2.0) * B[i][j][k] + B[i-1][j][k])
+                                + SCALAR_VAL(0.125) * (B[i][j+1][k] - SCALAR_VAL(2.0) * B[i][j][k] + B[i][j-1][k])
+                                + SCALAR_VAL(0.125) * (B[i][j][k+1] - SCALAR_VAL(2.0) * B[i][j][k] + B[i][j][k-1])
+                                + B[i][j][k];
+               }
+           }
+       }
+    }
+}
+#pragma endscop
 
 }
 

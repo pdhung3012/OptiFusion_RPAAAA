@@ -1,4 +1,4 @@
-/**
+/*******************************************************
  * This version is stamped on May 10, 2016
  *
  * Contact:
@@ -70,30 +70,15 @@ void kernel_trisolv(int n,
 {
   int i, j;
 
-  /* ppcg generated CPU code */
-  
-  #define ppcg_min(x,y)    ({ __typeof__(x) _x = (x); __typeof__(y) _y = (y); _x < _y ? _x : _y; })
-  #define ppcg_max(x,y)    ({ __typeof__(x) _x = (x); __typeof__(y) _y = (y); _x > _y ? _x : _y; })
-  {
-    #pragma omp parallel for
-    for (int c0 = 0; c0 < n; c0 += 1)
-      x[c0] = b[c0];
-    for (int c0 = 0; c0 < n; c0 += 32)
-      for (int c1 = c0; c1 < n; c1 += 32) {
-        for (int c2 = 0; c2 <= ppcg_min(ppcg_min(31, n - c0 - 2), -c0 + c1 + 30); c2 += 1) {
-          if (c1 == c0)
-            x[c0 + c2] = (x[c0 + c2] / L[c0 + c2][c0 + c2]);
-          #pragma omp parallel for
-          for (int c3 = ppcg_max(0, c0 - c1 + c2 + 1); c3 <= ppcg_min(31, n - c1 - 1); c3 += 1)
-            x[c1 + c3] -= (L[c1 + c3][c0 + c2] * x[c0 + c2]);
-        }
-        if (c0 + 31 >= n && c1 == c0) {
-          x[n - 1] = (x[n - 1] / L[n - 1][n - 1]);
-        } else if (n >= c0 + 32 && c1 == c0) {
-          x[c0 + 31] = (x[c0 + 31] / L[c0 + 31][c0 + 31]);
-        }
-      }
-  }
+#pragma scop
+  for (i = 0; i < _PB_N; i++)
+    {
+      x[i] = b[i];
+      for (j = 0; j <i; j++)
+        x[i] -= L[i][j] * x[j];
+      x[i] = x[i] / L[i][i];
+    }
+#pragma endscop
 
 }
 

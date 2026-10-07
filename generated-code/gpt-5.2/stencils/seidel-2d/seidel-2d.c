@@ -1,5 +1,5 @@
-/**
- * This version is stamped on May 10, 2016
+/******************************************************************************/
+/* This version is stamped on May 10, 2016
  *
  * Contact:
  *   Louis-Noel Pouchet <pouchet.ohio-state.edu>
@@ -64,17 +64,25 @@ void kernel_seidel_2d(int tsteps,
 {
   int t, i, j;
 
-  /* ppcg generated CPU code */
-  
-  #define ppcg_min(x,y)    ({ __typeof__(x) _x = (x); __typeof__(y) _y = (y); _x < _y ? _x : _y; })
-  #define ppcg_max(x,y)    ({ __typeof__(x) _x = (x); __typeof__(y) _y = (y); _x > _y ? _x : _y; })
-  for (int c0 = 0; c0 < tsteps; c0 += 32)
-    for (int c1 = c0; c1 <= ppcg_min(tsteps + n - 4, n + c0 + 28); c1 += 32)
-      for (int c2 = c0 + c1; c2 <= ppcg_min(ppcg_min(ppcg_min(2 * tsteps + 2 * n - 8, 2 * n + 2 * c0 + 56), tsteps + n + c1 + 27), n + c0 + c1 + 59); c2 += 32)
-        for (int c3 = ppcg_max(ppcg_max(ppcg_max(0, -n - c0 + c1 + 3), -n - c0 - c1 + c2 - 28), (c2 / 2) - n - c0 + 3); c3 <= ppcg_min(ppcg_min(31, tsteps - c0 - 1), (c2 / 2) - c0 + 15); c3 += 1)
-          for (int c4 = ppcg_max(ppcg_max(0, c0 - c1 + c3), -n - c0 - c1 + c2 - c3 + 3); c4 <= ppcg_min(ppcg_min(31, n + c0 - c1 + c3 - 3), -c0 - c1 + c2 - c3 + 31); c4 += 1)
-            for (int c5 = ppcg_max(0, c0 + c1 - c2 + c3 + c4); c5 <= ppcg_min(31, n + c0 + c1 - c2 + c3 + c4 - 3); c5 += 1)
-              A[-c0 + c1 - c3 + c4 + 1][-c0 - c1 + c2 - c3 - c4 + c5 + 1] = (((((((((A[-c0 + c1 - c3 + c4][-c0 - c1 + c2 - c3 - c4 + c5] + A[-c0 + c1 - c3 + c4][-c0 - c1 + c2 - c3 - c4 + c5 + 1]) + A[-c0 + c1 - c3 + c4][-c0 - c1 + c2 - c3 - c4 + c5 + 2]) + A[-c0 + c1 - c3 + c4 + 1][-c0 - c1 + c2 - c3 - c4 + c5]) + A[-c0 + c1 - c3 + c4 + 1][-c0 - c1 + c2 - c3 - c4 + c5 + 1]) + A[-c0 + c1 - c3 + c4 + 1][-c0 - c1 + c2 - c3 - c4 + c5 + 2]) + A[-c0 + c1 - c3 + c4 + 2][-c0 - c1 + c2 - c3 - c4 + c5]) + A[-c0 + c1 - c3 + c4 + 2][-c0 - c1 + c2 - c3 - c4 + c5 + 1]) + A[-c0 + c1 - c3 + c4 + 2][-c0 - c1 + c2 - c3 - c4 + c5 + 2]) / 9.);
+#pragma scop
+#pragma omp parallel private(t,i,j)
+  {
+    for (t = 0; t <= _PB_TSTEPS - 1; t++)
+#pragma omp for collapse(2) ordered(2) schedule(static)
+      for (i = 1; i<= _PB_N - 2; i++)
+        for (j = 1; j <= _PB_N - 2; j++)
+          {
+#pragma omp ordered depend(sink: i-1, j) depend(sink: i, j-1) depend(sink: i-1, j+1)
+            {
+              A[i][j] = (A[i-1][j-1] + A[i-1][j] + A[i-1][j+1]
+                         + A[i][j-1] + A[i][j] + A[i][j+1]
+                         + A[i+1][j-1] + A[i+1][j] + A[i+1][j+1])/SCALAR_VAL(9.0);
+            }
+#pragma omp ordered depend(source)
+            { }
+          }
+  }
+#pragma endscop
 
 }
 

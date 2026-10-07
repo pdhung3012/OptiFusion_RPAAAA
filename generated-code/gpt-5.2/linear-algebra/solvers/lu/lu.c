@@ -1,4 +1,4 @@
-/**
+/*******************************************************
  * This version is stamped on May 10, 2016
  *
  * Contact:
@@ -86,55 +86,22 @@ void kernel_lu(int n,
 {
   int i, j, k;
 
-  /* ppcg generated CPU code */
-  
-  #define ppcg_min(x,y)    ({ __typeof__(x) _x = (x); __typeof__(y) _y = (y); _x < _y ? _x : _y; })
-  #define ppcg_max(x,y)    ({ __typeof__(x) _x = (x); __typeof__(y) _y = (y); _x > _y ? _x : _y; })
-  for (int c0 = 0; c0 < n - 1; c0 += 32)
-    for (int c1 = c0; c1 < n - 1; c1 += 32)
-      for (int c2 = c0; c2 < n; c2 += 32) {
-        if (c1 >= c2 + 32) {
-          for (int c3 = 0; c3 <= ppcg_min(31, -c0 + c2 + 30); c3 += 1)
-            #pragma omp parallel for
-            for (int c4 = 0; c4 <= ppcg_min(31, n - c1 - 2); c4 += 1) {
-              if (c2 == c0)
-                A[c1 + c4 + 1][c0 + c3] /= A[c0 + c3][c0 + c3];
-              for (int c5 = ppcg_max(0, c0 - c2 + c3 + 1); c5 <= 31; c5 += 1)
-                A[c1 + c4 + 1][c2 + c5] -= (A[c1 + c4 + 1][c0 + c3] * A[c0 + c3][c2 + c5]);
-            }
-          if (c2 == c0)
-            #pragma omp parallel for
-            for (int c4 = 0; c4 <= ppcg_min(31, n - c1 - 2); c4 += 1)
-              A[c1 + c4 + 1][c0 + 31] /= A[c0 + 31][c0 + 31];
-        } else {
-          for (int c3 = 0; c3 <= ppcg_min(ppcg_min(31, n - c0 - 2), -c0 + c2 + 30); c3 += 1) {
-            if (c2 >= c1 + 32) {
-              #pragma omp parallel for
-              for (int c4 = ppcg_max(0, c0 - c1 + c3); c4 <= 31; c4 += 1)
-                for (int c5 = 0; c5 <= ppcg_min(31, n - c2 - 1); c5 += 1)
-                  A[c1 + c4 + 1][c2 + c5] -= (A[c1 + c4 + 1][c0 + c3] * A[c0 + c3][c2 + c5]);
-            } else {
-              if (c1 == c0) {
-                A[c0 + c3 + 1][c0 + c3] /= A[c0 + c3][c0 + c3];
-                #pragma omp parallel for
-                for (int c5 = c3 + 1; c5 <= ppcg_min(31, n - c0 - 1); c5 += 1)
-                  A[c0 + c3 + 1][c0 + c5] -= (A[c0 + c3 + 1][c0 + c3] * A[c0 + c3][c0 + c5]);
-              }
-              #pragma omp parallel for
-              for (int c4 = ppcg_max(0, c0 - c1 + c3 + 1); c4 <= ppcg_min(31, n - c1 - 2); c4 += 1) {
-                if (c1 == c0)
-                  A[c0 + c4 + 1][c0 + c3] /= A[c0 + c3][c0 + c3];
-                for (int c5 = ppcg_max(0, c0 - c1 + c3 + 1); c5 <= c4; c5 += 1)
-                  A[c1 + c4 + 1][c1 + c5] -= (A[c1 + c4 + 1][c0 + c3] * A[c0 + c3][c1 + c5]);
-                for (int c5 = c4 + 1; c5 <= ppcg_min(31, n - c1 - 1); c5 += 1)
-                  A[c1 + c4 + 1][c1 + c5] -= (A[c1 + c4 + 1][c0 + c3] * A[c0 + c3][c1 + c5]);
-              }
-            }
-          }
-          if (n >= c0 + 33 && c1 == c0 && c2 == c0)
-            A[c0 + 32][c0 + 31] /= A[c0 + 31][c0 + 31];
-        }
-      }
+#pragma scop
+  for (i = 0; i < _PB_N; i++) {
+    for (j = 0; j <i; j++) {
+       for (k = 0; k < j; k++) {
+          A[i][j] -= A[i][k] * A[k][j];
+       }
+        A[i][j] /= A[j][j];
+    }
+#pragma omp parallel for private(k) schedule(static)
+   for (j = i; j < _PB_N; j++) {
+       for (k = 0; k < i; k++) {
+          A[i][j] -= A[i][k] * A[k][j];
+       }
+    }
+  }
+#pragma endscop
 }
 
 

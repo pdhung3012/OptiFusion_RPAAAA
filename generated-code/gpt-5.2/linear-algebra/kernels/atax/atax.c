@@ -1,4 +1,5 @@
-/**
+/*************************
+
  * This version is stamped on May 10, 2016
  *
  * Contact:
@@ -70,30 +71,21 @@ void kernel_atax(int m, int n,
 {
   int i, j;
 
-  /* ppcg generated CPU code */
-  
-  #define ppcg_min(x,y)    ({ __typeof__(x) _x = (x); __typeof__(y) _y = (y); _x < _y ? _x : _y; })
-  #define ppcg_max(x,y)    ({ __typeof__(x) _x = (x); __typeof__(y) _y = (y); _x > _y ? _x : _y; })
-  {
-    #pragma omp parallel for
-    for (int c0 = 0; c0 < m; c0 += 32)
-      for (int c1 = 0; c1 <= ppcg_max(0, n - 1); c1 += 32)
-        for (int c2 = 0; c2 <= ppcg_min(31, m - c0 - 1); c2 += 1) {
-          if (c1 == 0)
-            tmp[c0 + c2] = 0.;
-          for (int c3 = 0; c3 <= ppcg_min(31, n - c1 - 1); c3 += 1)
-            tmp[c0 + c2] = (tmp[c0 + c2] + (A[c0 + c2][c1 + c3] * x[c1 + c3]));
-        }
-    #pragma omp parallel for
-    for (int c0 = 0; c0 < n; c0 += 32)
-      for (int c1 = 0; c1 <= ppcg_max(0, m - 1); c1 += 32)
-        for (int c2 = 0; c2 <= ppcg_min(31, n - c0 - 1); c2 += 1) {
-          if (c1 == 0)
-            y[c0 + c2] = 0;
-          for (int c3 = 0; c3 <= ppcg_min(31, m - c1 - 1); c3 += 1)
-            y[c0 + c2] = (y[c0 + c2] + (A[c1 + c3][c0 + c2] * tmp[c1 + c3]));
-        }
-  }
+#pragma scop
+#pragma omp parallel for
+  for (i = 0; i < _PB_N; i++)
+    y[i] = 0;
+
+#pragma omp parallel for private(j) reduction(+:y[:_PB_N])
+  for (i = 0; i < _PB_M; i++)
+    {
+      tmp[i] = SCALAR_VAL(0.0);
+      for (j = 0; j < _PB_N; j++)
+	tmp[i] = tmp[i] + A[i][j] * x[j];
+      for (j = 0; j < _PB_N; j++)
+	y[j] = y[j] + A[i][j] * tmp[i];
+    }
+#pragma endscop
 
 }
 

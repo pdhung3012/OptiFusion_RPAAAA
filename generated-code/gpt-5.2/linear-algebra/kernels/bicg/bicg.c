@@ -1,12 +1,12 @@
-/**
- * This version is stamped on May 10, 2016
- *
- * Contact:
- *   Louis-Noel Pouchet <pouchet.ohio-state.edu>
- *   Tomofumi Yuki <tomofumi.yuki.fr>
- *
- * Web address: http://polybench.sourceforge.net
- */
+/*************************************************/
+/* This version is stamped on May 10, 2016       */
+/*                                               */
+/* Contact:                                      */
+/*   Louis-Noel Pouchet <pouchet.ohio-state.edu> */
+/*   Tomofumi Yuki <tomofumi.yuki.fr>            */
+/*                                               */
+/* Web address: http://polybench.sourceforge.net */
+/*************************************************/
 /* bicg.c: this file is part of PolyBench/C */
 
 #include <stdio.h>
@@ -79,30 +79,22 @@ void kernel_bicg(int m, int n,
 {
   int i, j;
 
-  /* ppcg generated CPU code */
-  
-  #define ppcg_min(x,y)    ({ __typeof__(x) _x = (x); __typeof__(y) _y = (y); _x < _y ? _x : _y; })
-  #define ppcg_max(x,y)    ({ __typeof__(x) _x = (x); __typeof__(y) _y = (y); _x > _y ? _x : _y; })
-  {
-    #pragma omp parallel for
-    for (int c0 = 0; c0 < n; c0 += 32)
-      for (int c1 = 0; c1 <= ppcg_max(0, m - 1); c1 += 32)
-        for (int c2 = 0; c2 <= ppcg_min(31, n - c0 - 1); c2 += 1) {
-          if (c1 == 0)
-            q[c0 + c2] = 0.;
-          for (int c3 = 0; c3 <= ppcg_min(31, m - c1 - 1); c3 += 1)
-            q[c0 + c2] = (q[c0 + c2] + (A[c0 + c2][c1 + c3] * p[c1 + c3]));
-        }
-    #pragma omp parallel for
-    for (int c0 = 0; c0 < m; c0 += 32)
-      for (int c1 = 0; c1 <= ppcg_max(0, n - 1); c1 += 32)
-        for (int c2 = 0; c2 <= ppcg_min(31, m - c0 - 1); c2 += 1) {
-          if (c1 == 0)
-            s[c0 + c2] = 0;
-          for (int c3 = 0; c3 <= ppcg_min(31, n - c1 - 1); c3 += 1)
-            s[c0 + c2] = (s[c0 + c2] + (r[c1 + c3] * A[c1 + c3][c0 + c2]));
-        }
-  }
+#pragma scop
+#pragma omp parallel for
+  for (i = 0; i < _PB_M; i++)
+    s[i] = 0;
+
+#pragma omp parallel for private(j) reduction(+:s[:_PB_M])
+  for (i = 0; i < _PB_N; i++)
+    {
+      q[i] = SCALAR_VAL(0.0);
+      for (j = 0; j < _PB_M; j++)
+	{
+	  s[j] = s[j] + r[i] * A[i][j];
+	  q[i] = q[i] + A[i][j] * p[j];
+	}
+    }
+#pragma endscop
 
 }
 

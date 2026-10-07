@@ -85,21 +85,17 @@ void kernel_gemm(int ni, int nj, int nk,
 //A is NIxNK
 //B is NKxNJ
 //C is NIxNJ
-  /* ppcg generated CPU code */
-  
-  #define ppcg_min(x,y)    ({ __typeof__(x) _x = (x); __typeof__(y) _y = (y); _x < _y ? _x : _y; })
-  #define ppcg_max(x,y)    ({ __typeof__(x) _x = (x); __typeof__(y) _y = (y); _x > _y ? _x : _y; })
-  #pragma omp parallel for
-  for (int c0 = 0; c0 < ni; c0 += 32)
-    for (int c1 = 0; c1 < nj; c1 += 32)
-      for (int c2 = 0; c2 <= ppcg_max(0, nk - 1); c2 += 32)
-        for (int c3 = 0; c3 <= ppcg_min(31, ni - c0 - 1); c3 += 1)
-          for (int c4 = 0; c4 <= ppcg_min(31, nj - c1 - 1); c4 += 1) {
-            if (c2 == 0)
-              C[c0 + c3][c1 + c4] *= beta;
-            for (int c5 = 0; c5 <= ppcg_min(31, nk - c2 - 1); c5 += 1)
-              C[c0 + c3][c1 + c4] += ((alpha * A[c0 + c3][c2 + c5]) * B[c2 + c5][c1 + c4]);
-          }
+#pragma scop
+#pragma omp parallel for private(j,k) schedule(static)
+  for (i = 0; i < _PB_NI; i++) {
+    for (j = 0; j < _PB_NJ; j++)
+	C[i][j] *= beta;
+    for (k = 0; k < _PB_NK; k++) {
+       for (j = 0; j < _PB_NJ; j++)
+	  C[i][j] += alpha * A[i][k] * B[k][j];
+    }
+  }
+#pragma endscop
 
 }
 

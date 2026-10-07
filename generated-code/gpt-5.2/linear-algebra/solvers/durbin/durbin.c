@@ -1,4 +1,4 @@
-/**
+/*************************************************************************************
  * This version is stamped on May 10, 2016
  *
  * Contact:
@@ -69,27 +69,31 @@ void kernel_durbin(int n,
 
  int i,k;
 
- /* ppcg generated CPU code */
- 
- {
-   beta = 1.;
-   y[0] = (-r[0]);
-   alpha = (-r[0]);
-   for (int c0 = 1; c0 < n; c0 += 1) {
-     beta = ((1 - (alpha * alpha)) * beta);
-     sum = 0.;
-     for (int c1 = 0; c1 < c0; c1 += 1)
-       sum += (r[c0 - c1 - 1] * y[c1]);
-     alpha = ((-(r[c0] + sum)) / beta);
-     #pragma omp parallel for
-     for (int c1 = 0; c1 < c0; c1 += 1)
-       z[c1] = (y[c1] + (alpha * y[c0 - c1 - 1]));
-     y[c0] = alpha;
-     #pragma omp parallel for
-     for (int c1 = 0; c1 < c0; c1 += 1)
-       y[c1] = z[c1];
+#pragma scop
+ y[0] = -r[0];
+ beta = SCALAR_VAL(1.0);
+ alpha = -r[0];
+
+ for (k = 1; k < _PB_N; k++) {
+   beta = (1-alpha*alpha)*beta;
+   sum = SCALAR_VAL(0.0);
+#pragma omp parallel for reduction(+:sum)
+   for (i=0; i<k; i++) {
+      sum += r[k-i-1]*y[i];
    }
+   alpha = - (r[k] + sum)/beta;
+
+#pragma omp parallel for
+   for (i=0; i<k; i++) {
+      z[i] = y[i] + alpha*y[k-i-1];
+   }
+#pragma omp parallel for
+   for (i=0; i<k; i++) {
+     y[i] = z[i];
+   }
+   y[k] = alpha;
  }
+#pragma endscop
 
 }
 

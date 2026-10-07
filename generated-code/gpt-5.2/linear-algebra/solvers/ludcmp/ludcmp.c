@@ -1,4 +1,4 @@
-/**
+/*****************************************
  * This version is stamped on May 10, 2016
  *
  * Contact:
@@ -101,49 +101,52 @@ void kernel_ludcmp(int n,
 
   DATA_TYPE w;
 
-  /* ppcg generated CPU code */
-  
-  #define ppcg_min(x,y)    ({ __typeof__(x) _x = (x); __typeof__(y) _y = (y); _x < _y ? _x : _y; })
-  #define ppcg_max(x,y)    ({ __typeof__(x) _x = (x); __typeof__(y) _y = (y); _x > _y ? _x : _y; })
-  {
-    for (int c0 = 0; c0 < n; c0 += 32)
-      for (int c1 = 0; c1 < n; c1 += 32) {
-        for (int c2 = ppcg_max(0, -c0 + c1 + 32); c2 <= ppcg_min(31, n - c0 - 1); c2 += 1)
-          for (int c3 = 0; c3 <= 31; c3 += 1) {
-            w = A[c0 + c2][c1 + c3];
-            for (int c4 = 0; c4 < c1 + c3; c4 += 1)
-              w -= (A[c0 + c2][c4] * A[c4][c1 + c3]);
-            A[c0 + c2][c1 + c3] = (w / A[c1 + c3][c1 + c3]);
-          }
-        for (int c2 = 0; c2 <= ppcg_min(ppcg_min(31, n - c0 - 1), -c0 + c1 + 31); c2 += 1) {
-          if (c1 == c0)
-            for (int c3 = 0; c3 < c2; c3 += 1) {
-              w = A[c0 + c2][c0 + c3];
-              for (int c4 = 0; c4 < c0 + c3; c4 += 1)
-                w -= (A[c0 + c2][c4] * A[c4][c0 + c3]);
-              A[c0 + c2][c0 + c3] = (w / A[c0 + c3][c0 + c3]);
-            }
-          for (int c3 = ppcg_max(0, c0 - c1 + c2); c3 <= ppcg_min(31, n - c1 - 1); c3 += 1) {
-            w = A[c0 + c2][c1 + c3];
-            for (int c4 = 0; c4 < c0 + c2; c4 += 1)
-              w -= (A[c0 + c2][c4] * A[c4][c1 + c3]);
-            A[c0 + c2][c1 + c3] = w;
-          }
-        }
-      }
-    for (int c0 = 0; c0 < n; c0 += 1) {
-      w = b[c0];
-      for (int c1 = 0; c1 < c0; c1 += 1)
-        w -= (A[c0][c1] * y[c1]);
-      y[c0] = w;
+#pragma scop
+  for (i = 0; i < _PB_N; i++) {
+    for (j = 0; j < i; j++) {
+       DATA_TYPE w_local = A[i][j];
+       DATA_TYPE sum = 0;
+       #pragma omp simd reduction(+:sum)
+       for (k = 0; k < j; k++) {
+          sum += A[i][k] * A[k][j];
+       }
+       w_local -= sum;
+       A[i][j] = w_local / A[j][j];
     }
-    for (int c0 = -n + 1; c0 <= 0; c0 += 1) {
-      w = y[-c0];
-      for (int c1 = -c0 + 1; c1 < n; c1 += 1)
-        w -= (A[-c0][c1] * x[c1]);
-      x[-c0] = (w / A[-c0][-c0]);
+
+    #pragma omp parallel for private(j,k) firstprivate(i) schedule(static)
+    for (j = i; j < _PB_N; j++) {
+       DATA_TYPE w_local = A[i][j];
+       DATA_TYPE sum = 0;
+       #pragma omp simd reduction(+:sum)
+       for (k = 0; k < i; k++) {
+          sum += A[i][k] * A[k][j];
+       }
+       w_local -= sum;
+       A[i][j] = w_local;
     }
   }
+
+  for (i = 0; i < _PB_N; i++) {
+     DATA_TYPE w_local = b[i];
+     DATA_TYPE sum = 0;
+     #pragma omp simd reduction(+:sum)
+     for (j = 0; j < i; j++)
+        sum += A[i][j] * y[j];
+     w_local -= sum;
+     y[i] = w_local;
+  }
+
+   for (i = _PB_N-1; i >= 0; i--) {
+     DATA_TYPE w_local = y[i];
+     DATA_TYPE sum = 0;
+     #pragma omp simd reduction(+:sum)
+     for (j = i+1; j < _PB_N; j++)
+        sum += A[i][j] * x[j];
+     w_local -= sum;
+     x[i] = w_local / A[i][i];
+  }
+#pragma endscop
 
 }
 

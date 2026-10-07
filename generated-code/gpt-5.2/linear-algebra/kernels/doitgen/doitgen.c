@@ -1,4 +1,4 @@
-/**
+/*********************************************
  * This version is stamped on May 10, 2016
  *
  * Contact:
@@ -6,7 +6,7 @@
  *   Tomofumi Yuki <tomofumi.yuki.fr>
  *
  * Web address: http://polybench.sourceforge.net
- */
+ *********************************************/
 /* doitgen.c: this file is part of PolyBench/C */
 
 #include <stdio.h>
@@ -69,26 +69,24 @@ void kernel_doitgen(int nr, int nq, int np,
 {
   int r, q, p, s;
 
-  /* ppcg generated CPU code */
-  
-  #define ppcg_min(x,y)    ({ __typeof__(x) _x = (x); __typeof__(y) _y = (y); _x < _y ? _x : _y; })
-  for (int c0 = 0; c0 < nr; c0 += 32)
-    for (int c1 = 0; c1 < nq; c1 += 32)
-      for (int c2 = 0; c2 <= ppcg_min(31, nr - c0 - 1); c2 += 1)
-        for (int c3 = 0; c3 <= ppcg_min(31, nq - c1 - 1); c3 += 1) {
-          #pragma omp parallel for
-          for (int c4 = 0; c4 < np; c4 += 32)
-            for (int c5 = 0; c5 < np; c5 += 32)
-              for (int c6 = 0; c6 <= ppcg_min(31, np - c4 - 1); c6 += 1) {
-                if (c5 == 0)
-                  sum[c4 + c6] = 0.;
-                for (int c7 = 0; c7 <= ppcg_min(31, np - c5 - 1); c7 += 1)
-                  sum[c4 + c6] += (A[c0 + c2][c1 + c3][c5 + c7] * C4[c5 + c7][c4 + c6]);
-              }
-          #pragma omp parallel for
-          for (int c4 = 0; c4 < np; c4 += 1)
-            A[c0 + c2][c1 + c3][c4] = sum[c4];
-        }
+#pragma scop
+#pragma omp parallel
+  {
+    DATA_TYPE sum_priv[_PB_NP];
+
+#pragma omp for collapse(2) private(p, s) schedule(static)
+    for (r = 0; r < _PB_NR; r++)
+      for (q = 0; q < _PB_NQ; q++)  {
+	for (p = 0; p < _PB_NP; p++)  {
+	  sum_priv[p] = SCALAR_VAL(0.0);
+	  for (s = 0; s < _PB_NP; s++)
+	    sum_priv[p] += A[r][q][s] * C4[s][p];
+	}
+	for (p = 0; p < _PB_NP; p++)
+	  A[r][q][p] = sum_priv[p];
+      }
+  }
+#pragma endscop
 
 }
 

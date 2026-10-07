@@ -1,4 +1,4 @@
-/**
+/*******************************************************************************
  * This version is stamped on May 10, 2016
  *
  * Contact:
@@ -84,21 +84,18 @@ void kernel_syr2k(int n, int m,
 //A is NxM
 //B is NxM
 //C is NxN
-  /* ppcg generated CPU code */
-  
-  #define ppcg_min(x,y)    ({ __typeof__(x) _x = (x); __typeof__(y) _y = (y); _x < _y ? _x : _y; })
-  #define ppcg_max(x,y)    ({ __typeof__(x) _x = (x); __typeof__(y) _y = (y); _x > _y ? _x : _y; })
-  #pragma omp parallel for
-  for (int c0 = 0; c0 < n; c0 += 32)
-    for (int c1 = 0; c1 <= ppcg_min(n - 1, c0 + 31); c1 += 32)
-      for (int c2 = 0; c2 <= ppcg_max(0, m - 1); c2 += 32)
-        for (int c3 = 0; c3 <= ppcg_min(31, n - c0 - 1); c3 += 1)
-          for (int c4 = 0; c4 <= ppcg_min(31, c0 - c1 + c3); c4 += 1) {
-            if (c2 == 0)
-              C[c0 + c3][c1 + c4] *= beta;
-            for (int c5 = 0; c5 <= ppcg_min(31, m - c2 - 1); c5 += 1)
-              C[c0 + c3][c1 + c4] += (((A[c1 + c4][c2 + c5] * alpha) * B[c0 + c3][c2 + c5]) + ((B[c1 + c4][c2 + c5] * alpha) * A[c0 + c3][c2 + c5]));
-          }
+#pragma scop
+#pragma omp parallel for private(j,k) schedule(static)
+  for (i = 0; i < _PB_N; i++) {
+    for (j = 0; j <= i; j++)
+      C[i][j] *= beta;
+    for (k = 0; k < _PB_M; k++)
+      for (j = 0; j <= i; j++)
+	{
+	  C[i][j] += A[j][k]*alpha*B[i][k] + B[j][k]*alpha*A[i][k];
+	}
+  }
+#pragma endscop
 
 }
 

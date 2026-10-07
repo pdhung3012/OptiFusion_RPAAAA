@@ -1,4 +1,4 @@
-/**
+/*************************************************************************************
  * This version is stamped on May 10, 2016
  *
  * Contact:
@@ -69,22 +69,19 @@ void kernel_jacobi_2d(int tsteps,
 {
   int t, i, j;
 
-  /* ppcg generated CPU code */
-  
-  #define ppcg_min(x,y)    ({ __typeof__(x) _x = (x); __typeof__(y) _y = (y); _x < _y ? _x : _y; })
-  #define ppcg_max(x,y)    ({ __typeof__(x) _x = (x); __typeof__(y) _y = (y); _x > _y ? _x : _y; })
-  #define ppcg_fdiv_q(n,d) (((n)<0) ? -((-(n)+(d)-1)/(d)) : (n)/(d))
-  for (int c0 = 0; c0 < tsteps; c0 += 32)
-    for (int c1 = 2 * c0; c1 <= ppcg_min(2 * tsteps + n - 4, n + 2 * c0 + 60); c1 += 32)
-      for (int c2 = ppcg_max(2 * c0, 32 * ppcg_fdiv_q(-n + c1 + 3, 32)); c2 <= ppcg_min(ppcg_min(2 * tsteps + n - 4, n + 2 * c0 + 60), n + c1 + 28); c2 += 32)
-        for (int c3 = ppcg_max(ppcg_max(0, -n - c0 + ppcg_fdiv_q(n + c1 + 1, 2) + 1), -n - c0 + ppcg_fdiv_q(n + c2 + 1, 2) + 1); c3 <= ppcg_min(ppcg_min(ppcg_min(31, tsteps - c0 - 1), (c1 / 2) - c0 + 15), (c2 / 2) - c0 + 15); c3 += 1)
-          for (int c4 = ppcg_max(ppcg_max(0, -n - c1 + c2 + 3), 2 * c0 - c1 + 2 * c3); c4 <= ppcg_min(31, n + 2 * c0 - c1 + 2 * c3 - 2); c4 += 1)
-            for (int c5 = ppcg_max(ppcg_max(0, 2 * c0 - c2 + 2 * c3), -n + c1 - c2 + c4 + 3); c5 <= ppcg_min(ppcg_min(31, n + 2 * c0 - c2 + 2 * c3 - 2), n + c1 - c2 + c4 - 3); c5 += 1) {
-              if (c1 + c4 >= 2 * c0 + 2 * c3 + 1 && c2 + c5 >= 2 * c0 + 2 * c3 + 1)
-                A[-2 * c0 + c1 - 2 * c3 + c4][-2 * c0 + c2 - 2 * c3 + c5] = (0.20000000000000001 * ((((B[-2 * c0 + c1 - 2 * c3 + c4][-2 * c0 + c2 - 2 * c3 + c5] + B[-2 * c0 + c1 - 2 * c3 + c4][-2 * c0 + c2 - 2 * c3 + c5 - 1]) + B[-2 * c0 + c1 - 2 * c3 + c4][-2 * c0 + c2 - 2 * c3 + c5 + 1]) + B[-2 * c0 + c1 - 2 * c3 + c4 + 1][-2 * c0 + c2 - 2 * c3 + c5]) + B[-2 * c0 + c1 - 2 * c3 + c4 - 1][-2 * c0 + c2 - 2 * c3 + c5]));
-              if (n + 2 * c0 + 2 * c3 >= c1 + c4 + 3 && n + 2 * c0 + 2 * c3 >= c2 + c5 + 3)
-                B[-2 * c0 + c1 - 2 * c3 + c4 + 1][-2 * c0 + c2 - 2 * c3 + c5 + 1] = (0.20000000000000001 * ((((A[-2 * c0 + c1 - 2 * c3 + c4 + 1][-2 * c0 + c2 - 2 * c3 + c5 + 1] + A[-2 * c0 + c1 - 2 * c3 + c4 + 1][-2 * c0 + c2 - 2 * c3 + c5]) + A[-2 * c0 + c1 - 2 * c3 + c4 + 1][-2 * c0 + c2 - 2 * c3 + c5 + 2]) + A[-2 * c0 + c1 - 2 * c3 + c4 + 2][-2 * c0 + c2 - 2 * c3 + c5 + 1]) + A[-2 * c0 + c1 - 2 * c3 + c4][-2 * c0 + c2 - 2 * c3 + c5 + 1]));
-            }
+#pragma scop
+  for (t = 0; t < _PB_TSTEPS; t++)
+    {
+#pragma omp parallel for private(i, j) collapse(2) schedule(static)
+      for (i = 1; i < _PB_N - 1; i++)
+	for (j = 1; j < _PB_N - 1; j++)
+	  B[i][j] = SCALAR_VAL(0.2) * (A[i][j] + A[i][j-1] + A[i][1+j] + A[1+i][j] + A[i-1][j]);
+#pragma omp parallel for private(i, j) collapse(2) schedule(static)
+      for (i = 1; i < _PB_N - 1; i++)
+	for (j = 1; j < _PB_N - 1; j++)
+	  A[i][j] = SCALAR_VAL(0.2) * (B[i][j] + B[i][j-1] + B[i][1+j] + B[1+i][j] + B[i-1][j]);
+    }
+#pragma endscop
 
 }
 

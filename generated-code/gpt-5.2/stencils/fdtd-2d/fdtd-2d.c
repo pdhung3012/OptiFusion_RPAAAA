@@ -1,4 +1,4 @@
-/**
+/*************************************************************************************
  * This version is stamped on May 10, 2016
  *
  * Contact:
@@ -97,52 +97,33 @@ void kernel_fdtd_2d(int tmax,
 {
   int t, i, j;
 
-  /* ppcg generated CPU code */
-  
-  #define ppcg_min(x,y)    ({ __typeof__(x) _x = (x); __typeof__(y) _y = (y); _x < _y ? _x : _y; })
-  #define ppcg_max(x,y)    ({ __typeof__(x) _x = (x); __typeof__(y) _y = (y); _x > _y ? _x : _y; })
-  if (ny >= 1)
-    for (int c0 = 0; c0 < tmax; c0 += 32)
-      for (int c1 = c0; c1 <= (nx >= 1 && nx + ny >= 3 && tmax >= c0 + 32 ? nx + c0 + 30 : (nx >= 1 && ny >= 2 && tmax + nx >= c0 + 3 && c0 + 31 >= tmax) || (nx >= 2 && ny == 1 && c0 + 31 >= tmax) ? tmax + nx - 2 : c0); c1 += 32)
-        for (int c2 = c0; c2 <= ppcg_min(tmax + ny - 2, ny + c0 + 30); c2 += 32) {
-          if (nx >= 1 && nx + ny >= 3) {
-            for (int c3 = ppcg_max(ppcg_max(0, -nx - c0 + c1 + 1), -ny - c0 + c2 + 1); c3 <= ppcg_min(ppcg_min(31, tmax - c0 - 1), ((c1 + c2) / 2) - c0 + 30); c3 += 1) {
-              if (ny == 1 && c1 == c0 && c2 == c0)
-                ey[0][0] = _fict_[c0 + c3];
-              for (int c4 = ppcg_max(ppcg_max(0, c0 - c1 + c3), -ny + c0 - c1 + c3 + 2); c4 <= ppcg_min(31, nx + c0 - c1 + c3 - 1); c4 += 1) {
-                if (c1 == c0 && c2 == c0 && c4 == c3)
-                  ey[0][0] = _fict_[c0 + c3];
-                for (int c5 = ppcg_max(ppcg_max(0, c0 - c2 + c3), 2 * c0 - c1 - c2 + 2 * c3 - c4 + 1); c5 <= ppcg_min(31, ny + c0 - c2 + c3 - 1); c5 += 1) {
-                  if (c1 == c0 && c4 == c3) {
-                    ey[0][-c0 + c2 - c3 + c5] = _fict_[c0 + c3];
-                  } else {
-                    ey[-c0 + c1 - c3 + c4][-c0 + c2 - c3 + c5] = (ey[-c0 + c1 - c3 + c4][-c0 + c2 - c3 + c5] - (0.5 * (hz[-c0 + c1 - c3 + c4][-c0 + c2 - c3 + c5] - hz[-c0 + c1 - c3 + c4 - 1][-c0 + c2 - c3 + c5])));
-                  }
-                  if (c2 + c5 >= c0 + c3 + 1) {
-                    ex[-c0 + c1 - c3 + c4][-c0 + c2 - c3 + c5] = (ex[-c0 + c1 - c3 + c4][-c0 + c2 - c3 + c5] - (0.5 * (hz[-c0 + c1 - c3 + c4][-c0 + c2 - c3 + c5] - hz[-c0 + c1 - c3 + c4][-c0 + c2 - c3 + c5 - 1])));
-                    if (c1 + c4 >= c0 + c3 + 1)
-                      hz[-c0 + c1 - c3 + c4 - 1][-c0 + c2 - c3 + c5 - 1] = (hz[-c0 + c1 - c3 + c4 - 1][-c0 + c2 - c3 + c5 - 1] - (0.69999999999999996 * (((ex[-c0 + c1 - c3 + c4 - 1][-c0 + c2 - c3 + c5] - ex[-c0 + c1 - c3 + c4 - 1][-c0 + c2 - c3 + c5 - 1]) + ey[-c0 + c1 - c3 + c4][-c0 + c2 - c3 + c5 - 1]) - ey[-c0 + c1 - c3 + c4 - 1][-c0 + c2 - c3 + c5 - 1])));
-                  }
-                }
-              }
-            }
-            if (nx >= 2 && ny >= 2 && tmax >= c0 + 32 && c1 == c0 && c2 == c0) {
-              ey[0][0] = _fict_[c0 + 31];
-            } else if (nx == 1 && tmax >= c0 + 32 && c1 == c0 && c2 == c0) {
-              ey[0][0] = _fict_[c0 + 31];
-            }
-          } else if (nx == 1 && ny == 1 && c1 == c0 && c2 == c0) {
-            for (int c3 = 0; c3 <= ppcg_min(30, tmax - c0 - 1); c3 += 1)
-              ey[0][0] = _fict_[c0 + c3];
-          } else if (nx <= 0 && c1 == c0) {
-            for (int c3 = ppcg_max(0, -ny - c0 + c2 + 1); c3 <= ppcg_min(ppcg_min(31, ny + 29), tmax - c0 - 1); c3 += 1)
-              #pragma omp parallel for
-              for (int c5 = ppcg_max(0, c0 - c2 + c3); c5 <= ppcg_min(31, ny + c0 - c2 + c3 - 1); c5 += 1)
-                ey[0][-c0 + c2 - c3 + c5] = _fict_[c0 + c3];
-          }
-          if (ny == 1 && tmax >= c0 + 32 && c1 == c0 && c2 == c0)
-            ey[0][0] = _fict_[c0 + 31];
-        }
+#pragma scop
+
+#pragma omp parallel private(t,i,j)
+  for(t = 0; t < _PB_TMAX; t++)
+    {
+#pragma omp for schedule(static)
+      for (j = 0; j < _PB_NY; j++)
+	ey[0][j] = _fict_[t];
+
+#pragma omp for collapse(2) schedule(static)
+      for (i = 1; i < _PB_NX; i++)
+	for (j = 0; j < _PB_NY; j++)
+	  ey[i][j] = ey[i][j] - SCALAR_VAL(0.5)*(hz[i][j]-hz[i-1][j]);
+
+#pragma omp for collapse(2) schedule(static)
+      for (i = 0; i < _PB_NX; i++)
+	for (j = 1; j < _PB_NY; j++)
+	  ex[i][j] = ex[i][j] - SCALAR_VAL(0.5)*(hz[i][j]-hz[i][j-1]);
+
+#pragma omp for collapse(2) schedule(static)
+      for (i = 0; i < _PB_NX - 1; i++)
+	for (j = 0; j < _PB_NY - 1; j++)
+	  hz[i][j] = hz[i][j] - SCALAR_VAL(0.7)*  (ex[i][j+1] - ex[i][j] +
+				       ey[i+1][j] - ey[i][j]);
+    }
+
+#pragma endscop
 }
 
 
