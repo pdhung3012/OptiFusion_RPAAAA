@@ -26,6 +26,13 @@ Requirements:
 Do not include Markdown code fences.
 """
 
+import os
+from openai import OpenAI
+
+# Set your OpenAI API key
+
+# os.environ["OPENAI_API_KEY"] = ""
+
 
 def generate_teacher_data(input_file, output_file, model):
     Path(output_file).parent.mkdir(
