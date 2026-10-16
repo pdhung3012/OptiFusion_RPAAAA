@@ -1,0 +1,205 @@
+Expert Knowledge Documentation: PolyBench 2mm
+Static optimization analysis of PPCG, PLUTO, Gemini, and GPT-5.2 outputs
+Scope. This document analyzes the supplied 2mm implementations qualitatively for likely speedup behavior. It compares the generated loop structure, OpenMP strategy, tiling, vectorization, locality, and overhead. It does not report measured runtime speedups; performance conclusions should be validated on the target hardware.
+1. Application Characteristics
+2mm computes two consecutive dense matrix multiplications: tmp = α·A·B, followed by D = β·D + tmp·C. The kernel is compute intensive and has substantial reuse potential, so performance is strongly affected by cache locality, parallel work distribution, vectorization, and the overhead of entering OpenMP regions.
+Most useful parallelism: independent output rows/cells of tmp and D.
+Most useful locality optimization: block/tile the matrix-multiplication loops so A/tmp blocks and portions of B/C remain cache-resident.
+Most useful low-level optimization: SIMD/vectorization of contiguous inner loops when legal and profitable.
+Key risk: a transformation can increase loop-control complexity or scheduling overhead enough to offset locality gains, especially for small problem sizes.
+2. Supplied 2mm Implementations
+Approach	Files inspected	Main transformation observed
+PPCG	2mm_ppcg_openmp.c
+2mm_ppcg_tile.c	Outer-loop OpenMP; tiled variant uses 32-sized blocking in i/j/k dimensions.
+PLUTO	2mm.pluto.c
+2mm.pluto.tile.c	Affine/polyhedral scheduling with OpenMP and vector directives; tiled variant adds 32-sized blocking and more aggressive restructuring.
+Gemini	gemini/.../2mm/2mm.c	Two separate OpenMP parallel-for regions over the outer i loop; original loop order otherwise largely preserved.
+GPT-5.2	gpt-5.2/.../2mm/2mm.c	One OpenMP parallel region containing two collapse(2), static-scheduled work-sharing loops.
+3. Approach-by-Approach Expert Analysis
+3.1 PPCG
+Observed optimization. The OpenMP version parallelizes the outer i dimension separately for the two matrix-multiplication phases. The tiled version keeps OpenMP parallelism but introduces 32×32-style blocking across the output and reduction dimensions, with boundary handling through min/max expressions.
+Advantages for speedup
+Both phases expose coarse-grained row/block parallelism with no reduction synchronization between threads because each thread updates disjoint output elements.
+The tiled version can substantially improve temporal and spatial cache locality by reusing blocks of A, B, tmp, and C before moving to the next tile.
+Blocking the reduction dimension can reduce cache misses and memory-bandwidth pressure, which is especially valuable for dense matrix multiplication.
+The transformation is systematic and dependence-aware, making it suitable as a reliable baseline for legal loop restructuring.
+Disadvantages / risks
+The untiled OpenMP version leaves the original memory-access pattern mostly intact, so B and C accesses can still suffer poor cache locality as matrices grow.
+The tiled version fixes the tile size at 32; this may be suboptimal for a particular cache hierarchy, data type, thread count, or matrix size.
+Boundary min/max logic and deeper loop nesting add control overhead. For small matrices, this overhead can offset tiling benefits.
+Two separate OpenMP parallel-for regions introduce fork/join overhead between the tmp and D phases.
+Expert knowledge. For 2mm, PPCG’s tiled output is generally the more promising performance template than its simple OpenMP output when matrices are large enough to benefit from cache blocking. The most reusable idea is to combine coarse thread-level parallelism with cache-sized blocking, while tuning the tile size rather than assuming 32 is universally optimal.
+3.2 PLUTO
+Observed optimization. The non-tiled output applies polyhedral rescheduling, OpenMP parallel loops, and explicit vectorization directives. It also restructures initialization and computation. The tiled output adds 32-sized tiles and fuses/reorders several operations into a more complex generated schedule.
+Advantages for speedup
+PLUTO can exploit more transformation freedom than simple pragma insertion, including loop fusion, reordering, parallelization, and vector-friendly loop formation.
+Explicit ivdep/vector directives can help the compiler generate SIMD code for contiguous inner loops, increasing arithmetic throughput.
+The tiled version improves locality across the two dense multiplication stages and exposes cache-blocked computation similar to optimized GEMM structure.
+Fusing initialization/scaling with surrounding transformed loops may reduce extra full-array passes and improve cache reuse in favorable cases.
+Disadvantages / risks
+The generated control structure is much more complex, with many bounds, conditionals, and transformed induction variables; this increases instruction overhead and makes performance sensitive to problem dimensions.
+Aggressive fusion/reordering can create less intuitive access patterns and may not always map cleanly to the target cache/microarchitecture despite being dependence-correct.
+The tiled output again uses a fixed tile size of 32, which may not match the best hardware-specific block size.
+Generated code size and branch complexity can reduce instruction-cache efficiency and make compiler auto-optimization/debugging more difficult.
+Expert knowledge. PLUTO is valuable when 2mm benefits from aggressive affine transformations beyond basic OpenMP. Its strongest reusable ideas are vector-friendly inner loops and legal fusion/reordering, but these should be retained only when profiling confirms that the extra schedule complexity beats a simpler tiled implementation.
+3.3 Gemini
+Observed optimization. Gemini preserves the original two-phase loop structure and adds one OpenMP parallel-for to each outer i loop, with j and k private. No loop collapse, tiling, explicit scheduling policy, or SIMD directive is added.
+Advantages for speedup
+The transformation is simple and low risk: each i row is independent, so outer-loop parallelization maps naturally to the kernel.
+Low transformation complexity keeps loop-control overhead small and preserves compiler-friendly, readable code.
+Using a parallel outer row loop gives each thread substantial work for medium/large matrices, which can amortize OpenMP scheduling cost.
+The original numerical operation order inside each output element is preserved, reducing the chance of unexpected numerical differences from aggressive reordering.
+Disadvantages / risks
+Parallelizing only i may expose insufficient parallelism when NI is small relative to the thread count.
+Two independent parallel-for directives create two separate parallel regions and therefore additional fork/join overhead.
+No cache tiling is introduced, so the implementation misses a major optimization opportunity for the B/C access streams in large matrices.
+No explicit SIMD/vectorization guidance is provided, leaving vectorization entirely to the downstream compiler.
+Expert knowledge. Gemini provides a strong simplicity-first baseline. Its output is appropriate when thread-level parallelism alone is sufficient, but for high-performance 2mm the main missing knowledge is cache blocking and broader work sharing. A useful refinement would preserve the simple structure while adding tiling and/or collapse only when needed.
+3.4 GPT-5.2
+Observed optimization. GPT-5.2 creates a single OpenMP parallel region and uses two work-sharing loops with collapse(2) and schedule(static), parallelizing the i–j output space for both multiplication stages while keeping k private.
+Advantages for speedup
+A single parallel region can reduce repeated OpenMP team creation/destruction relative to two independent parallel-for regions.
+collapse(2) exposes NI×NJ (and NI×NL) tasks instead of only NI tasks, improving thread utilization when the number of rows is not large enough by itself.
+schedule(static) is a good fit for regular dense matrix multiplication because iterations have nearly uniform work, minimizing scheduler overhead.
+The code remains much simpler than polyhedral tiled output, giving a favorable balance between parallelism and maintainability.
+Disadvantages / risks
+collapse(2) increases work-sharing granularity but does not fix memory locality in the reduction dimension; cache behavior of B and C remains a bottleneck.
+For very large NI, outer-i parallelism may already provide enough work, so collapse(2) may add bookkeeping without meaningful scalability benefit.
+No cache tiling or explicit vectorization is introduced, leaving significant matrix-multiplication optimization potential unused.
+The implicit barrier between the two omp-for loops is required by the tmp dependency; although correct, it means the two stages cannot freely overlap.
+Expert knowledge. GPT-5.2 demonstrates a useful OpenMP optimization rule for 2mm: reuse one parallel region and statically distribute the full output space when outer-loop parallelism is insufficient. For maximum speed, this strategy should be combined with cache blocking and compiler/SIMD-friendly inner loops rather than used alone.
+4. Cross-Approach Knowledge for 2mm
+Approach	Thread parallelism	Tiling/locality	Vectorization	Primary concern
+PPCG	Outer i / tile blocks	Yes in tiled version (32)	Implicit/compiler-dependent	Fixed tile size; two parallel regions
+PLUTO	Polyhedral OpenMP schedule	Yes in tiled version (32)	Explicit vector directives	High schedule/control complexity
+Gemini	Outer i only	No	Compiler-dependent	Limited parallelism/locality optimization
+GPT-5.2	collapse(2), static, one team	No	Compiler-dependent	Good work sharing but misses cache blocking
+5. Recommended Knowledge Rules for Optimizing 2mm
+Prioritize cache blocking because 2mm is dominated by two dense matrix multiplications; thread parallelism alone does not address the main locality bottleneck.
+Parallelize independent output rows/tiles. Use collapse(2) when NI alone does not provide enough parallel work, but avoid unnecessary collapse when row-level parallelism already saturates the machine.
+Prefer one persistent OpenMP parallel region across the two dependent phases when practical, with a barrier between phases, to reduce repeated fork/join overhead.
+Use static scheduling for the regular, balanced iteration space unless measurements show load imbalance.
+Choose tile sizes according to cache capacity, data type, matrix dimensions, and thread count; treat 32 as a candidate rather than a universal constant.
+Keep the innermost loops simple and vectorizable. Favor contiguous accesses and explicit SIMD/vector guidance when the compiler needs help.
+Profile aggressive polyhedral fusion/reordering against a simpler tiled OpenMP baseline; legal transformations are not automatically faster on every architecture.
+Validate numerical equivalence after transformations, especially if future optimizations alter floating-point reduction order.
+Expert Knowledge Documentation: PolyBench 3mm
+Speedup-oriented comparison of PPCG, PLUTO, Gemini, and GPT-5.2
+This document is derived from the supplied source-code variants. Performance advantages/disadvantages are expert expectations based on the observed transformations; they are not measured runtime claims.
+1. Source Variants Inspected
+PPCG: 3mm_ppcg_openmp.c and 3mm_ppcg_tile.c
+PLUTO: 3mm.pluto.c and 3mm.pluto.tile.c
+Gemini: linear-algebra/kernels/3mm/3mm.c
+GPT-5.2: linear-algebra/kernels/3mm/3mm.c
+2. Application Optimization Characteristics
+Three dense matrix multiplications are executed in sequence: E=A×B, F=C×D, and G=E×F. E and F are independent of one another, while G depends on both. The kernels have high arithmetic intensity and regular memory access, making loop blocking, SIMD/vectorization, and coarse-grained thread parallelism particularly relevant.
+3. Approach-by-Approach Knowledge
+Approach	Observed optimization	Speedup advantages	Speedup disadvantages
+PPCG – OpenMP	Generates three separate OpenMP-parallel matrix-multiplication nests, parallelizing the outer output-row dimension.	Simple, regular work partitioning; low transformation complexity; good coarse-grained parallelism for large matrices; preserves straightforward matrix-multiplication structure.	Each multiplication enters a separate parallel region; no cache blocking; no explicit SIMD directives; E and F are still executed sequentially even though they are independent.
+PPCG – Tiled	Applies 32×32×32 blocking to all three products and parallelizes outer tiles.	Improves cache reuse for A/B, C/D, and E/F; reduces working-set pressure; exposes coarse tile-level parallelism; particularly suitable for dense matrix multiplication.	Fixed tile size may not match every cache/matrix size; additional loop-control overhead and edge handling; three products are still globally sequential.
+PLUTO – Original	Uses affine schedule transformations, OpenMP parallel loops, and explicit vectorization hints (ivdep/vector always) on suitable inner loops.	Combines thread-level parallelism with SIMD opportunities; transformed scheduling can improve locality and expose parallel dimensions beyond the original source order.	Generated control flow is substantially more complex; repeated parallel regions can add overhead; locality is less explicit than in the tiled version; transformed bounds may inhibit compiler optimization on some systems.
+PLUTO – Tiled	Adds 32-sized multidimensional tiles to the affine schedule and retains OpenMP plus vectorization directives.	Strong combination of temporal/spatial locality, SIMD, and thread parallelism; blocking benefits all three matrix products; can reduce cache misses compared with untiled forms.	Very complex generated loop bounds and cleanup cases; fixed blocking may be suboptimal; code-size/control overhead can be significant; still does not explicitly overlap E and F.
+Gemini	Adds one omp parallel for around the outer i loop of each of the three matrix multiplications.	Low-risk transformation; large independent row chunks; little scheduling complexity; easy for the compiler to optimize further.	Creates three distinct parallel regions; no collapse, tiling, SIMD, or explicit scheduling; does not exploit the independence of E and F; cache reuse remains essentially baseline.
+GPT-5.2	Uses one omp parallel region containing three omp for collapse(2) phases; computes each output with a private scalar sum.	Reuses the same thread team across all three products, reducing fork/join overhead; collapse(2) exposes more tasks when one matrix dimension is small; scalar accumulation is optimizer-friendly.	Implicit barriers remain between phases; no cache blocking or SIMD directives; collapse(2) can make scheduling less cache-friendly; E and F are not computed concurrently.
+4. Cross-Approach Synthesis
+The compiler-generated variants emphasize dependence-aware affine transformations and, in their tiled versions, explicit locality optimization. The LLM-generated variants generally favor simpler OpenMP edits that preserve the original program structure. This simplicity can reduce transformation overhead and improve maintainability, while PPCG/PLUTO can expose locality and legal parallelism that are difficult to derive from a local pragma insertion alone.
+A strong SmartCompiler-style strategy should therefore combine the two: retain compiler legality/dependence knowledge for tiling and scheduling, but prefer the simplest parallel structure that achieves the required locality and thread utilization on the target machine.
+5. Reusable Expert Knowledge for Speedup
+Prioritize cache blocking for all three matrix products; a tile size around 32 is a reasonable starting point but should be tuned to cache size and data type.
+Use one persistent OpenMP parallel region when possible to avoid repeatedly creating thread teams across E, F, and G.
+Preserve the dependency barrier before G, but E and F may be computed concurrently using OpenMP sections/tasks when resources and matrix sizes justify it.
+Keep the reduction/accumulation dimension innermost or otherwise structured to maximize vectorization and reuse.
+Combine thread-level parallelism with SIMD rather than relying on OpenMP outer-loop parallelism alone.
+For small problem sizes, avoid excessive collapse, tasking, or many parallel regions because runtime overhead can dominate.
+6. Knowledge Guidance for SmartCompiler
+When optimizing this application, use the rules above as constraints and preferences rather than blindly copying any one generated version. Select transformations according to matrix/grid size, thread count, cache hierarchy, vector width, and measured overhead. Favor a hybrid candidate that preserves compiler-proven legality while reducing unnecessary parallel-region creation, complex cleanup logic, and fine-grained scheduling.
+Expert Knowledge Documentation: PolyBench Cholesky
+Speedup-oriented comparison of PPCG, PLUTO, Gemini, and GPT-5.2
+This document is derived from the supplied source-code variants. Performance advantages/disadvantages are expert expectations based on the observed transformations; they are not measured runtime claims.
+1. Source Variants Inspected
+PPCG: cholesky_ppcg_openmp.c and cholesky_ppcg_tile.c
+PLUTO: cholesky.pluto.c and cholesky.pluto.tile.c
+Gemini: linear-algebra/solvers/cholesky/cholesky.c
+GPT-5.2: linear-algebra/solvers/cholesky/cholesky.c
+2. Application Optimization Characteristics
+Cholesky factorization has strong loop-carried dependencies: each diagonal element and column depends on previously computed columns. Parallelism therefore lies mainly in updating independent rows/blocks after a pivot/column becomes available. Unlike GEMM, blindly parallelizing inner reductions or dependent outer loops can be ineffective or incorrect.
+3. Approach-by-Approach Knowledge
+Approach	Observed optimization	Speedup advantages	Speedup disadvantages
+PPCG – OpenMP	Keeps the dependent outer factorization sequential and introduces omp parallel for within update work after a diagonal/pivot step.	Respects major dependencies; exposes parallel work only where the transformed dependence analysis permits it; useful as trailing work grows.	Parallel regions occur inside sequential outer progress and may be too fine-grained; repeated fork/join overhead can dominate; no explicit vectorization; early iterations have little parallel work.
+PPCG – Tiled	Applies blocking (primarily 32-sized regions) to dependent factorization/update phases and adds OpenMP to selected block updates.	Blocking can improve locality and increase the amount of work per parallel update; tile structure can better expose trailing-submatrix concurrency.	Generated code is highly complex with many boundary/special cases; fixed tile size is architecture/problem-size sensitive; some parallel loops remain fine-grained; synchronization/dependency overhead is unavoidable.
+PLUTO – Original	Uses affine rescheduling and OpenMP over legal transformed update dimensions while preserving sequential dependence phases.	Can expose parallel update fronts not obvious in the source; coarse transformed iterations may amortize some overhead; dependence legality is compiler-derived.	Complex schedule and bounds; available parallelism varies over factorization progress; no clear cache blocking in original; synchronization may limit scalability.
+PLUTO – Tiled	Introduces block/tile scheduling (including 16/32-scale bounds in generated code) and OpenMP on legal block updates.	Improves reuse of previously computed factors and creates larger block updates; more suitable for cache hierarchy and multicore execution than scalar updates.	Very complicated generated control flow; nonuniform triangular domains can load-imbalance threads; tile choice must balance dependency latency, cache reuse, and available concurrency.
+Gemini	Reorders around column j: computes the diagonal sequentially, then parallelizes independent i>j row updates with omp parallel for.	A natural and safe Cholesky parallelization: all rows below the current diagonal can be updated independently once A[j][j] is known; simple code and meaningful coarse work for later/larger columns.	A new parallel worksharing operation occurs for every column; early/late columns may have insufficient work; inner dot products are sequential and not explicitly vectorized or blocked.
+GPT-5.2	For each i/j, allocates temporary arrays, parallelizes elementwise product generation, then performs the subtraction sequentially; repeats allocation/free operations inside the factorization.	Avoids a data race on scalar accumulation by parallelizing independent product formation; static scheduling is predictable; mathematically preserves the sequential reduction order in a second pass.	Frequent dynamic allocation/free inside nested loops is expensive; parallel regions target short k loops and can cost more than they save; doubles memory traffic through temporary buffers; does not exploit the stronger row-level parallelism used by Gemini; likely poor scalability for typical PolyBench sizes.
+4. Cross-Approach Synthesis
+The compiler-generated variants emphasize dependence-aware affine transformations and, in their tiled versions, explicit locality optimization. The LLM-generated variants generally favor simpler OpenMP edits that preserve the original program structure. This simplicity can reduce transformation overhead and improve maintainability, while PPCG/PLUTO can expose locality and legal parallelism that are difficult to derive from a local pragma insertion alone.
+A strong SmartCompiler-style strategy should therefore combine the two: retain compiler legality/dependence knowledge for tiling and scheduling, but prefer the simplest parallel structure that achieves the required locality and thread utilization on the target machine.
+5. Reusable Expert Knowledge for Speedup
+Do not parallelize the dependent outer factorization dimension without a blocked/task dependency scheme.
+After a diagonal/column is ready, parallelize independent row or trailing-block updates rather than short inner dot-product loops.
+Use blocked Cholesky to convert scalar updates into larger matrix operations with better cache reuse and more parallel work.
+Avoid allocating temporary arrays inside hot nested loops; use thread-local scalar/vector reductions or blocked kernels instead.
+Exploit SIMD for dot products while keeping the reduction local to a thread.
+Use tasks with dependencies or coarse block-level OpenMP only when block sizes provide enough work to amortize scheduling and synchronization.
+6. Knowledge Guidance for SmartCompiler
+When optimizing this application, use the rules above as constraints and preferences rather than blindly copying any one generated version. Select transformations according to matrix/grid size, thread count, cache hierarchy, vector width, and measured overhead. Favor a hybrid candidate that preserves compiler-proven legality while reducing unnecessary parallel-region creation, complex cleanup logic, and fine-grained scheduling.
+Expert Knowledge Documentation: PolyBench GEMM
+Speedup-oriented comparison of PPCG, PLUTO, Gemini, and GPT-5.2
+This document is derived from the supplied source-code variants. Performance advantages/disadvantages are expert expectations based on the observed transformations; they are not measured runtime claims.
+1. Source Variants Inspected
+PPCG: gemm_ppcg_openmp.c and gemm_ppcg_tile.c
+PLUTO: gemm.pluto.c and gemm.pluto.tile.c
+Gemini: linear-algebra/blas/gemm/gemm.c
+GPT-5.2: linear-algebra/blas/gemm/gemm.c
+2. Application Optimization Characteristics
+GEMM computes C = beta·C + alpha·A·B. It is compute-dense, highly regular, and a classic target for hierarchical blocking, vectorization, register reuse, and thread parallelism. The main optimization objective is to maximize reuse of A and B while writing C efficiently.
+3. Approach-by-Approach Knowledge
+Approach	Observed optimization	Speedup advantages	Speedup disadvantages
+PPCG – OpenMP	Parallelizes the outer output-row loop of the GEMM computation.	Simple race-free row decomposition; large coarse-grained tasks; little OpenMP scheduling overhead; preserves compiler-friendly inner loops.	No cache blocking; no explicit SIMD; reuse of A/B is limited by original loop structure; performance may remain well below optimized BLAS-style GEMM.
+PPCG – Tiled	Uses 32×32×32 blocking and parallelizes outer row tiles.	Substantially improves cache reuse and working-set locality; exposes coarse tile-level parallelism; maps naturally to dense matrix multiplication.	Fixed tile size is architecture-dependent; edge-tile branches/index bounds add overhead; no explicit SIMD directives or micro-kernel/register blocking.
+PLUTO – Original	Transforms loops, parallelizes output work with OpenMP, and adds ivdep/vector always to contiguous inner loops.	Combines thread and SIMD parallelism; vector hints target the j/output dimension; affine transformation can improve scheduling and data reuse.	No full cache tiling in the original variant; generated loop bounds are less readable and may add overhead; performance depends on compiler response to vector directives.
+PLUTO – Tiled	Adds 32-sized blocking across matrix dimensions and keeps OpenMP plus vectorization directives.	Strong cache locality, SIMD opportunity, and thread-level parallelism; closest compiler-generated structure to conventional blocked GEMM; reduces repeated memory fetches.	Still lacks architecture-specific packing and register micro-kernels used by tuned BLAS libraries; fixed tile size may be suboptimal; more loop-control complexity.
+Gemini	Adds omp parallel for over i and retains the original k→j inner order.	Low-risk parallelism; each thread owns rows of C; k→j ordering gives contiguous traversal of B and C over j; easy for auto-vectorization.	No explicit schedule, tiling, SIMD, or packing; C is revisited for each k, increasing cache pressure; only one level of parallel optimization.
+GPT-5.2	Uses omp parallel for over i with schedule(static), otherwise preserving the same k→j structure.	Static scheduling is appropriate for uniform row workloads and removes dynamic scheduling cost; deterministic row ownership supports locality.	Only marginally more optimized than Gemini; no tiling, SIMD directive, packing, or persistent higher-level strategy; limited cache reuse compared with blocked versions.
+4. Cross-Approach Synthesis
+The compiler-generated variants emphasize dependence-aware affine transformations and, in their tiled versions, explicit locality optimization. The LLM-generated variants generally favor simpler OpenMP edits that preserve the original program structure. This simplicity can reduce transformation overhead and improve maintainability, while PPCG/PLUTO can expose locality and legal parallelism that are difficult to derive from a local pragma insertion alone.
+A strong SmartCompiler-style strategy should therefore combine the two: retain compiler legality/dependence knowledge for tiling and scheduling, but prefer the simplest parallel structure that achieves the required locality and thread utilization on the target machine.
+5. Reusable Expert Knowledge for Speedup
+Use cache blocking as a primary optimization; begin with a moderate tile such as 32 but tune for cache hierarchy and matrix sizes.
+Parallelize coarse output-row or output-tile dimensions so each thread owns disjoint C regions.
+Use static scheduling for regular dense GEMM workloads.
+Vectorize the contiguous output-column dimension and preserve unit-stride accesses to B and C.
+For additional speedup, add register blocking/micro-kernels or call a tuned BLAS when allowed.
+Avoid over-parallelizing tiny tiles; thread granularity should be large enough to amortize OpenMP overhead.
+6. Knowledge Guidance for SmartCompiler
+When optimizing this application, use the rules above as constraints and preferences rather than blindly copying any one generated version. Select transformations according to matrix/grid size, thread count, cache hierarchy, vector width, and measured overhead. Favor a hybrid candidate that preserves compiler-proven legality while reducing unnecessary parallel-region creation, complex cleanup logic, and fine-grained scheduling.
+Expert Knowledge Documentation: PolyBench Jacobi-2D
+Speedup-oriented comparison of PPCG, PLUTO, Gemini, and GPT-5.2
+This document is derived from the supplied source-code variants. Performance advantages/disadvantages are expert expectations based on the observed transformations; they are not measured runtime claims.
+1. Source Variants Inspected
+PPCG: jacobi-2d_ppcg_openmp.c and jacobi-2d_ppcg_tile.c
+PLUTO: jacobi-2d.pluto.c and jacobi-2d.pluto.tile.c
+Gemini: stencils/jacobi-2d/jacobi-2d.c
+GPT-5.2: stencils/jacobi-2d/jacobi-2d.c
+2. Application Optimization Characteristics
+Jacobi-2D repeatedly updates a 2D grid over multiple time steps using neighboring points and alternates between two arrays. Spatial points inside a single update phase are parallel, but time steps and the A↔B phases carry dependencies. Performance is typically memory-bandwidth and locality sensitive, so spatial tiling, temporal/wavefront tiling, thread reuse, and avoiding excessive synchronization are central.
+3. Approach-by-Approach Knowledge
+Approach	Observed optimization	Speedup advantages	Speedup disadvantages
+PPCG – OpenMP	Transforms the stencil into a dependence-aware skewed iteration space, but the generated untiled form contains no visible OpenMP parallel directive in the inspected kernel.	Legality-aware affine transformation preserves time/space dependences and creates a basis for more advanced wavefront execution.	Untiled transformed code is complex while exposing little direct thread parallelism; no explicit SIMD hints; may add index arithmetic without sufficient locality benefit.
+PPCG – Tiled	Applies 32-sized tiling over the skewed time/space iteration space.	Temporal/spatial blocking can improve cache reuse across neighboring stencil updates and reduce memory traffic; dependence-aware tiles preserve legal execution order.	Generated bounds are highly complex; no explicit OpenMP directive is visible in this tiled PPCG kernel; fixed tile sizes may not match cache capacity; control overhead can offset gains for small grids/time steps.
+PLUTO – Original	Uses time skewing/wavefront-style affine scheduling and OpenMP parallel loops over legal transformed dimensions.	Exposes legal parallel wavefronts across time/space; can increase parallelism while respecting dependencies; better opportunity for reuse than naive per-time-step execution.	Complex schedule/bounds; frequent synchronization between wavefronts; no simple source-level locality model; performance can be sensitive to problem dimensions and OpenMP overhead.
+PLUTO – Tiled	Adds multidimensional tiling to the skewed schedule and retains OpenMP wavefront parallelism.	Potentially strong temporal locality by reusing grid values within tiles; combines cache blocking and legal cross-time parallelism; can reduce main-memory traffic.	Very large and complex control structure; boundary handling is expensive; fixed tiles can create load imbalance; more difficult for downstream compiler analysis.
+Gemini	For each time step, parallelizes the outer i loop separately for the A→B and B→A sweeps.	Simple and safe spatial parallelism; contiguous inner-j traversal is cache-friendly; low code complexity.	Creates two parallel regions per time step, causing repeated fork/join and barriers; no collapse, temporal tiling, or SIMD; does not reuse a persistent thread team.
+GPT-5.2	Adds collapse(2) and schedule(static) to both spatial sweeps at every time step.	More parallel iterations are exposed; static scheduling is predictable and low overhead for uniform stencil work; useful if N is too small to saturate threads with the outer loop alone.	Still creates two parallel regions per time step; collapse(2) may reduce row locality and increase scheduling granularity; no temporal tiling; synchronization remains on every sweep.
+4. Cross-Approach Synthesis
+The compiler-generated variants emphasize dependence-aware affine transformations and, in their tiled versions, explicit locality optimization. The LLM-generated variants generally favor simpler OpenMP edits that preserve the original program structure. This simplicity can reduce transformation overhead and improve maintainability, while PPCG/PLUTO can expose locality and legal parallelism that are difficult to derive from a local pragma insertion alone.
+A strong SmartCompiler-style strategy should therefore combine the two: retain compiler legality/dependence knowledge for tiling and scheduling, but prefer the simplest parallel structure that achieves the required locality and thread utilization on the target machine.
+5. Reusable Expert Knowledge for Speedup
+Keep time-step ordering and the A→B/B→A phase barrier intact; parallelize only dependence-free spatial work unless using a proven wavefront transformation.
+Use a persistent OpenMP parallel region around the time loop and omp for inside each phase to reduce repeated fork/join overhead.
+Prefer static scheduling for the regular stencil workload.
+Use spatial tiling first for cache locality; use temporal/wavefront tiling only when the implementation can preserve dependencies and amortize its control overhead.
+Avoid collapse(2) by default when row-wise locality already gives sufficient parallelism; enable it when outer rows alone underutilize available threads.
+Vectorize the contiguous inner dimension and choose tile dimensions that preserve contiguous access.
+6. Knowledge Guidance for SmartCompiler
+When optimizing this application, use the rules above as constraints and preferences rather than blindly copying any one generated version. Select transformations according to matrix/grid size, thread count, cache hierarchy, vector width, and measured overhead. Favor a hybrid candidate that preserves compiler-proven legality while reducing unnecessary parallel-region creation, complex cleanup logic, and fine-grained scheduling.

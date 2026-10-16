@@ -83,7 +83,7 @@ def generate_teacher_data(input_file, output_file, model,kd_documentation):
 
             record = {
                 "id": index,
-                "prompt": prompt,
+                "code_location": sample['code_location'],
                 "completion": optimized_code,
                 "teacher": model,
                 "verified": False,
