@@ -15,7 +15,11 @@ client = OpenAI(api_key=api_key)
 
 
 def build_prompt(sample,knowledge_contenrt):
-    return f"""Optimize the following C code for CPU execution.
+    return f"""Create the OpenMP-optimized version of the following C code. \
+        Please add openmp pragmas to the regions start with '#pragma scope' and end with '#pragma endscop'. \
+        The optimized code should be semantically equivalent to the original code, and should avoid data races. \
+        Please do not change the content of C code. Return only the optimized code without any additional \
+        text or explanations.
 
 Original code:
 {sample["original_code"]}
