@@ -5,17 +5,23 @@ import argparse
 from pathlib import Path
 from openai import OpenAI
 
-client = OpenAI()
+f1=open("/home/hungphd/openai_key.txt", "r", encoding="utf-8")
+api_key=f1.read().strip()
+f1.close()
+print("API Key:", api_key)
+# input("aaaa")
+
+client = OpenAI(api_key=api_key)
 
 
-def build_prompt(sample):
+def build_prompt(sample,knowledge_contenrt):
     return f"""Optimize the following C code for CPU execution.
 
 Original code:
-{sample["input"]}
+{sample["original_code"]}
 
 Expert Knowledge:
-{sample["knowledge"]}
+{knowledge_content}
 
 Requirements:
 1. Preserve the semantics of the original program.
@@ -34,17 +40,23 @@ from openai import OpenAI
 # os.environ["OPENAI_API_KEY"] = ""
 
 
-def generate_teacher_data(input_file, output_file, model):
+def generate_teacher_data(input_file, output_file, model,kd_documentation):
     Path(output_file).parent.mkdir(
         parents=True, exist_ok=True
     )
 
+    f1=open(kd_documentation, "r", encoding="utf-8")
+    knowledge_content=f1.read()
+    f1.close()
+
+
     with open(input_file, encoding="utf-8") as src, \
          open(output_file, "w", encoding="utf-8") as dst:
 
-        for line in src:
-            sample = json.loads(line)
-            prompt = build_prompt(sample)
+        data = json.load(src)
+        for index, sample in enumerate(data):
+            # sample = json.loads(line)
+            prompt = build_prompt(sample,knowledge_content)
 
             response = client.responses.create(
                 model=model,
@@ -66,7 +78,7 @@ def generate_teacher_data(input_file, output_file, model):
             optimized_code = response.output_text.strip()
 
             record = {
-                "id": sample["id"],
+                "id": index,
                 "prompt": prompt,
                 "completion": optimized_code,
                 "teacher": model,
@@ -74,16 +86,25 @@ def generate_teacher_data(input_file, output_file, model):
             }
 
             dst.write(json.dumps(record) + "\n")
-            print("Generated:", sample["id"])
+            print("Generated:", index)
 
+knowledge_content=''
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--input", default="data/input.jsonl"
+        "--input", default="input_original.json"
     )
     parser.add_argument(
-        "--output", default="data/teacher.jsonl"
+        "--kd_documentation", default="../expert_knowledge_documentation_genral.txt"
+    )
+
+    # parser.add_argument(
+    #     "--api_key_location", default="/home/hungphd/openai_key.txt"
+    # )
+
+    parser.add_argument(
+        "--output", default="output_teacher_gpt-5.2.json"
     )
     parser.add_argument(
         "--model", default="gpt-5.2"
@@ -92,5 +113,5 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     generate_teacher_data(
-        args.input, args.output, args.model
+        args.input, args.output, args.model,args.kd_documentation
     )
