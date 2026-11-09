@@ -1,4 +1,4 @@
-/**********
+/******************************************************* 
  * This version is stamped on May 10, 2016
  *
  * Contact:
@@ -80,24 +80,22 @@ void kernel_bicg(int m, int n,
   int i, j;
 
 #pragma scop
-#pragma omp parallel
+#pragma omp parallel default(none) shared(s,q,r,A,p) private(i,j)
   {
 #pragma omp for schedule(static)
-    for (i = 0; i < _PB_M; i++)
-      s[i] = 0;
-
+  for (i = 0; i < _PB_M; i++)
+    s[i] = 0;
 #pragma omp for schedule(static)
-    for (i = 0; i < _PB_N; i++)
-      {
-	DATA_TYPE qtmp = SCALAR_VAL(0.0);
-	for (j = 0; j < _PB_M; j++)
-	  {
+  for (i = 0; i < _PB_N; i++)
+    {
+      q[i] = SCALAR_VAL(0.0);
+      for (j = 0; j < _PB_M; j++)
+	{
 #pragma omp atomic update
-	    s[j] = s[j] + r[i] * A[i][j];
-	    qtmp = qtmp + A[i][j] * p[j];
-	  }
-	q[i] = qtmp;
-      }
+	  s[j] = s[j] + r[i] * A[i][j];
+	  q[i] = q[i] + A[i][j] * p[j];
+	}
+    }
   }
 #pragma endscop
 

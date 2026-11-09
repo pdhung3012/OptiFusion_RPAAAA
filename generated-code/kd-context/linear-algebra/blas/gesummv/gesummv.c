@@ -1,4 +1,4 @@
-/**
+/**************************
  * This version is stamped on May 10, 2016
  *
  * Contact:
@@ -80,11 +80,12 @@ void kernel_gesummv(int n,
   int i, j;
 
 #pragma scop
-#pragma omp parallel for private(j) schedule(static)
+#pragma omp parallel for schedule(static) private(j)
   for (i = 0; i < _PB_N; i++)
     {
       tmp[i] = SCALAR_VAL(0.0);
       y[i] = SCALAR_VAL(0.0);
+#pragma omp simd
       for (j = 0; j < _PB_N; j++)
 	{
 	  tmp[i] = A[i][j] * x[j] + tmp[i];

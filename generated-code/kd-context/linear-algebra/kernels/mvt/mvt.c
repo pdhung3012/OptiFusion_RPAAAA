@@ -85,15 +85,17 @@ void kernel_mvt(int n,
   int i, j;
 
 #pragma scop
-#pragma omp parallel for private(j) schedule(static)
+#pragma omp parallel default(none) shared(A, x1, x2, y_1, y_2) private(i, j)
+  {
+#pragma omp for schedule(static)
   for (i = 0; i < _PB_N; i++)
     for (j = 0; j < _PB_N; j++)
       x1[i] = x1[i] + A[i][j] * y_1[j];
-
-#pragma omp parallel for private(j) schedule(static)
+#pragma omp for schedule(static)
   for (i = 0; i < _PB_N; i++)
     for (j = 0; j < _PB_N; j++)
       x2[i] = x2[i] + A[j][i] * y_2[j];
+  }
 #pragma endscop
 
 }

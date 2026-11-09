@@ -1,4 +1,4 @@
-/***********************************************
+/**
  * This version is stamped on May 10, 2016
  *
  * Contact:
@@ -70,22 +70,17 @@ void kernel_doitgen(int nr, int nq, int np,
   int r, q, p, s;
 
 #pragma scop
-#pragma omp parallel private(r,q,p,s)
-  {
-    DATA_TYPE sum_local[NP];
-
-#pragma omp for collapse(2) schedule(static)
-    for (r = 0; r < _PB_NR; r++)
-      for (q = 0; q < _PB_NQ; q++)  {
-	for (p = 0; p < _PB_NP; p++)  {
-	  sum_local[p] = SCALAR_VAL(0.0);
-	  for (s = 0; s < _PB_NP; s++)
-	    sum_local[p] += A[r][q][s] * C4[s][p];
-	}
-	for (p = 0; p < _PB_NP; p++)
-	  A[r][q][p] = sum_local[p];
+#pragma omp parallel for collapse(2) default(none) private(r, q, p, s) shared(A, C4, sum) schedule(static)
+  for (r = 0; r < _PB_NR; r++)
+    for (q = 0; q < _PB_NQ; q++)  {
+      for (p = 0; p < _PB_NP; p++)  {
+	sum[p] = SCALAR_VAL(0.0);
+	for (s = 0; s < _PB_NP; s++)
+	  sum[p] += A[r][q][s] * C4[s][p];
       }
-  }
+      for (p = 0; p < _PB_NP; p++)
+	A[r][q][p] = sum[p];
+    }
 #pragma endscop
 
 }

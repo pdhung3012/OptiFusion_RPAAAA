@@ -1,4 +1,4 @@
-/*************************************************************
+/**
  * This version is stamped on May 10, 2016
  *
  * Contact:
@@ -19,10 +19,6 @@
 
 /* Include benchmark-specific header. */
 #include "durbin.h"
-
-#ifdef _OPENMP
-#include <omp.h>
-#endif
 
 
 /* Array initialization. */
@@ -81,17 +77,14 @@ void kernel_durbin(int n,
  for (k = 1; k < _PB_N; k++) {
    beta = (1-alpha*alpha)*beta;
    sum = SCALAR_VAL(0.0);
-#pragma omp parallel for default(none) shared(r,y,k) reduction(+:sum)
    for (i=0; i<k; i++) {
       sum += r[k-i-1]*y[i];
    }
    alpha = - (r[k] + sum)/beta;
 
-#pragma omp parallel for default(none) shared(z,y,alpha,k)
    for (i=0; i<k; i++) {
       z[i] = y[i] + alpha*y[k-i-1];
    }
-#pragma omp parallel for default(none) shared(y,z,k)
    for (i=0; i<k; i++) {
      y[i] = z[i];
    }

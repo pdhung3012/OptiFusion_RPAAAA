@@ -1,12 +1,15 @@
-/***********************************************
- * This version is stamped on May 10, 2016
- *
- * Contact:
- *   Louis-Noel Pouchet <pouchet.ohio-state.edu>
- *   Tomofumi Yuki <tomofumi.yuki.fr>
- *
- * Web address: http://polybench.sourceforge.net
- ***********************************************/
+/********************************************************/
+/* Polybench: a polyhedral benchmark suite              */
+/* Available from http://polybench.sourceforge.net/     */
+/*                                                      */
+/* This version is stamped on May 10, 2016              */
+/*                                                      */
+/* Contact:                                             */
+/*   Louis-Noel Pouchet <pouchet.ohio-state.edu>        */
+/*   Tomofumi Yuki <tomofumi.yuki.fr>                   */
+/*                                                      */
+/* Web address: http://polybench.sourceforge.net        */
+/********************************************************/
 /* atax.c: this file is part of PolyBench/C */
 
 #include <stdio.h>
@@ -71,26 +74,21 @@ void kernel_atax(int m, int n,
   int i, j;
 
 #pragma scop
-#pragma omp parallel
+#pragma omp parallel default(none) shared(A,x,y,tmp) private(i,j)
   {
 #pragma omp for schedule(static)
-    for (i = 0; i < _PB_N; i++)
-      y[i] = 0;
-
+  for (i = 0; i < _PB_N; i++)
+    y[i] = 0;
 #pragma omp for schedule(static)
-    for (i = 0; i < _PB_M; i++)
-      {
-	tmp[i] = SCALAR_VAL(0.0);
-	for (j = 0; j < _PB_N; j++)
-	  tmp[i] = tmp[i] + A[i][j] * x[j];
-      }
-
-#pragma omp for schedule(static)
-    for (j = 0; j < _PB_N; j++)
-      {
-	for (i = 0; i < _PB_M; i++)
-	  y[j] = y[j] + A[i][j] * tmp[i];
-      }
+  for (i = 0; i < _PB_M; i++)
+    {
+      tmp[i] = SCALAR_VAL(0.0);
+      for (j = 0; j < _PB_N; j++)
+	tmp[i] = tmp[i] + A[i][j] * x[j];
+#pragma omp critical
+      for (j = 0; j < _PB_N; j++)
+	y[j] = y[j] + A[i][j] * tmp[i];
+    }
   }
 #pragma endscop
 

@@ -1,4 +1,4 @@
-/*******************************************
+/**********
  * This version is stamped on May 10, 2016
  *
  * Contact:
@@ -13,8 +13,6 @@
 #include <unistd.h>
 #include <string.h>
 #include <math.h>
-
-#include <omp.h>
 
 /* Include polybench common header. */
 #include <polybench.h>
@@ -100,32 +98,26 @@ void kernel_gemver(int n,
 
 #pragma scop
 
-#pragma omp parallel private(i,j)
+#pragma omp parallel default(none) shared(A,u1,v1,u2,v2,x,y,z,alpha,beta) private(i,j)
   {
-#pragma omp for schedule(static)
-    for (i = 0; i < _PB_N; i++)
-      for (j = 0; j < _PB_N; j++)
-        A[i][j] = A[i][j] + u1[i] * v1[j] + u2[i] * v2[j];
+#pragma omp for collapse(2) schedule(static)
+  for (i = 0; i < _PB_N; i++)
+    for (j = 0; j < _PB_N; j++)
+      A[i][j] = A[i][j] + u1[i] * v1[j] + u2[i] * v2[j];
 
 #pragma omp for schedule(static)
-    for (i = 0; i < _PB_N; i++) {
-      DATA_TYPE tmp = x[i];
-      for (j = 0; j < _PB_N; j++)
-        tmp = tmp + beta * A[j][i] * y[j];
-      x[i] = tmp;
-    }
+  for (i = 0; i < _PB_N; i++)
+    for (j = 0; j < _PB_N; j++)
+      x[i] = x[i] + beta * A[j][i] * y[j];
 
 #pragma omp for schedule(static)
-    for (i = 0; i < _PB_N; i++)
-      x[i] = x[i] + z[i];
+  for (i = 0; i < _PB_N; i++)
+    x[i] = x[i] + z[i];
 
 #pragma omp for schedule(static)
-    for (i = 0; i < _PB_N; i++) {
-      DATA_TYPE tmp = w[i];
-      for (j = 0; j < _PB_N; j++)
-        tmp = tmp +  alpha * A[i][j] * x[j];
-      w[i] = tmp;
-    }
+  for (i = 0; i < _PB_N; i++)
+    for (j = 0; j < _PB_N; j++)
+      w[i] = w[i] +  alpha * A[i][j] * x[j];
   }
 
 #pragma endscop

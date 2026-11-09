@@ -1,4 +1,4 @@
-/**********************************************************
+/*************************************************************
  * This version is stamped on May 10, 2016
  *
  * Contact:
@@ -19,10 +19,6 @@
 
 /* Include benchmark-specific header. */
 #include "symm.h"
-
-#ifdef _OPENMP
-#include <omp.h>
-#endif
 
 
 /* Array initialization. */
@@ -94,37 +90,18 @@ void kernel_symm(int m, int n,
 // C is MxN
 //note that due to Fortran array layout, the code below more closely resembles upper triangular case in BLAS
 #pragma scop
-#ifdef _OPENMP
-#pragma omp parallel
-  {
-    int ii, jj, kk;
-    DATA_TYPE t2;
-    for (ii = 0; ii < _PB_M; ii++) {
-#pragma omp for schedule(static)
-      for (jj = 0; jj < _PB_N; jj++) {
-        t2 = 0;
-        for (kk = 0; kk < ii; kk++) {
-#pragma omp atomic update
-          C[kk][jj] += alpha*B[ii][jj] * A[ii][kk];
-          t2 += B[kk][jj] * A[ii][kk];
-        }
-        C[ii][jj] = beta * C[ii][jj] + alpha*B[ii][jj] * A[ii][ii] + alpha * t2;
-      }
-#pragma omp barrier
-    }
-  }
-#else
+#pragma omp parallel for default(none) private(i,j,k,temp2) shared(alpha,beta,A,B,C) schedule(static)
    for (i = 0; i < _PB_M; i++)
       for (j = 0; j < _PB_N; j++ )
       {
         temp2 = 0;
         for (k = 0; k < i; k++) {
+#pragma omp atomic update
            C[k][j] += alpha*B[i][j] * A[i][k];
            temp2 += B[k][j] * A[i][k];
         }
         C[i][j] = beta * C[i][j] + alpha*B[i][j] * A[i][i] + alpha * temp2;
      }
-#endif
 #pragma endscop
 
 }

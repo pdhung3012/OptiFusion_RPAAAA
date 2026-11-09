@@ -1,4 +1,4 @@
-/*************************************************************************************
+/***********************************************
  * This version is stamped on May 10, 2016
  *
  * Contact:
@@ -6,7 +6,7 @@
  *   Tomofumi Yuki <tomofumi.yuki.fr>
  *
  * Web address: http://polybench.sourceforge.net
- */
+ ***********************************************/
 /* syr2k.c: this file is part of PolyBench/C */
 
 #include <stdio.h>
@@ -85,7 +85,7 @@ void kernel_syr2k(int n, int m,
 //B is NxM
 //C is NxN
 #pragma scop
-#pragma omp parallel for private(j,k) schedule(static)
+#pragma omp parallel for schedule(static) private(j,k)
   for (i = 0; i < _PB_N; i++) {
     for (j = 0; j <= i; j++)
       C[i][j] *= beta;

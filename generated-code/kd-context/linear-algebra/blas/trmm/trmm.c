@@ -1,4 +1,4 @@
-/**
+/************************************************************
  * This version is stamped on May 10, 2016
  *
  * Contact:
@@ -83,8 +83,8 @@ void kernel_trmm(int m, int n,
 // A is MxM
 // B is MxN
 #pragma scop
+#pragma omp parallel for collapse(2) schedule(static) private(i,j,k)
   for (i = 0; i < _PB_M; i++)
-     #pragma omp parallel for private(j,k) schedule(static)
      for (j = 0; j < _PB_N; j++) {
         for (k = i+1; k < _PB_M; k++)
            B[i][j] += A[k][i] * B[k][j];

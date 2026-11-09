@@ -1,4 +1,4 @@
-/**
+/*******************************************
  * This version is stamped on May 10, 2016
  *
  * Contact:
@@ -86,46 +86,27 @@ void kernel_gramschmidt(int m, int n,
   DATA_TYPE nrm;
 
 #pragma scop
-#pragma omp parallel default(none) shared(A,R,Q) private(i,j,k,nrm)
-  {
-    for (k = 0; k < _PB_N; k++)
-      {
-#pragma omp single
+  for (k = 0; k < _PB_N; k++)
+    {
+      nrm = SCALAR_VAL(0.0);
+#pragma omp parallel for reduction(+:nrm) schedule(static)
+      for (i = 0; i < _PB_M; i++)
+        nrm += A[i][k] * A[i][k];
+      R[k][k] = SQRT_FUN(nrm);
+#pragma omp parallel for schedule(static)
+      for (i = 0; i < _PB_M; i++)
+        Q[i][k] = A[i][k] / R[k][k];
+      for (j = k + 1; j < _PB_N; j++)
 	{
-	  nrm = SCALAR_VAL(0.0);
+	  R[k][j] = SCALAR_VAL(0.0);
+#pragma omp parallel for reduction(+:R[k][j]) schedule(static)
+	  for (i = 0; i < _PB_M; i++)
+	    R[k][j] += Q[i][k] * A[i][j];
+#pragma omp parallel for schedule(static)
+	  for (i = 0; i < _PB_M; i++)
+	    A[i][j] = A[i][j] - Q[i][k] * R[k][j];
 	}
-#pragma omp for reduction(+:nrm)
-	for (i = 0; i < _PB_M; i++)
-	  nrm += A[i][k] * A[i][k];
-
-#pragma omp single
-	{
-	  R[k][k] = SQRT_FUN(nrm);
-	}
-
-#pragma omp for
-	for (i = 0; i < _PB_M; i++)
-	  Q[i][k] = A[i][k] / R[k][k];
-
-	for (j = k + 1; j < _PB_N; j++)
-	  {
-#pragma omp single
-	    {
-	      R[k][j] = SCALAR_VAL(0.0);
-	    }
-
-#pragma omp for reduction(+:R[k][j])
-	    for (i = 0; i < _PB_M; i++)
-	      R[k][j] += Q[i][k] * A[i][j];
-
-#pragma omp for
-	    for (i = 0; i < _PB_M; i++)
-	      A[i][j] = A[i][j] - Q[i][k] * R[k][j];
-	  }
-
-#pragma omp barrier
-      }
-  }
+    }
 #pragma endscop
 
 }

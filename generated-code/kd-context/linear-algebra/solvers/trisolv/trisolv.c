@@ -1,4 +1,4 @@
-/***********************************************************
+/*******************************************
  * This version is stamped on May 10, 2016
  *
  * Contact:
@@ -13,7 +13,6 @@
 #include <unistd.h>
 #include <string.h>
 #include <math.h>
-#include <omp.h>
 
 /* Include polybench common header. */
 #include <polybench.h>
@@ -72,6 +71,7 @@ void kernel_trisolv(int n,
   int i, j;
 
 #pragma scop
+#pragma omp parallel for default(none) private(i, j) shared(L, x, b) schedule(static)
   for (i = 0; i < _PB_N; i++)
     {
       x[i] = b[i];

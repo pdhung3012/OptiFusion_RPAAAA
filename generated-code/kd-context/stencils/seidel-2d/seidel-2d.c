@@ -1,4 +1,4 @@
-/*********************************************************************************
+/**
  * This version is stamped on May 10, 2016
  *
  * Contact:
@@ -67,6 +67,7 @@ void kernel_seidel_2d(int tsteps,
 #pragma scop
   for (t = 0; t <= _PB_TSTEPS - 1; t++)
     for (i = 1; i<= _PB_N - 2; i++)
+#pragma omp simd
       for (j = 1; j <= _PB_N - 2; j++)
 	A[i][j] = (A[i-1][j-1] + A[i-1][j] + A[i-1][j+1]
 		   + A[i][j-1] + A[i][j] + A[i][j+1]

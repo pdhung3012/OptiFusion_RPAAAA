@@ -1,5 +1,5 @@
-/***********************************************************
- * This version is stamped on May 10, 2016
+/************************************************/
+/* This version is stamped on May 10, 2016
  *
  * Contact:
  *   Louis-Noel Pouchet <pouchet.ohio-state.edu>
@@ -8,6 +8,7 @@
  * Web address: http://polybench.sourceforge.net
  */
 /* lu.c: this file is part of PolyBench/C */
+/************************************************/
 
 #include <stdio.h>
 #include <unistd.h>
@@ -94,7 +95,6 @@ void kernel_lu(int n,
        }
         A[i][j] /= A[j][j];
     }
-#pragma omp parallel for private(k) schedule(static)
    for (j = i; j < _PB_N; j++) {
        for (k = 0; k < i; k++) {
           A[i][j] -= A[i][k] * A[k][j];

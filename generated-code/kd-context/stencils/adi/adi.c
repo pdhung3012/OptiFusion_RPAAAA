@@ -1,4 +1,4 @@
-/*********************************************************************************
+/*******************************************************
  * This version is stamped on May 10, 2016
  *
  * Contact:
@@ -6,7 +6,7 @@
  *   Tomofumi Yuki <tomofumi.yuki.fr>
  *
  * Web address: http://polybench.sourceforge.net
- */
+ ********************************************************/
 /* adi.c: this file is part of PolyBench/C */
 
 #include <stdio.h>
@@ -93,11 +93,9 @@ void kernel_adi(int tsteps, int n,
   e = SCALAR_VAL(1.0)+mul2;
   f = d;
 
-#pragma omp parallel default(none) shared(u,v,p,q,a,b,c,d,e,f) private(t,i,j)
-{
  for (t=1; t<=_PB_TSTEPS; t++) {
     //Column Sweep
-#pragma omp for schedule(static)
+#pragma omp parallel for private(i,j) schedule(static)
     for (i=1; i<_PB_N-1; i++) {
       v[0][i] = SCALAR_VAL(1.0);
       p[i][0] = SCALAR_VAL(0.0);
@@ -112,11 +110,8 @@ void kernel_adi(int tsteps, int n,
         v[j][i] = p[i][j] * v[j+1][i] + q[i][j];
       }
     }
-
-#pragma omp barrier
-
     //Row Sweep
-#pragma omp for schedule(static)
+#pragma omp parallel for private(i,j) schedule(static)
     for (i=1; i<_PB_N-1; i++) {
       u[i][0] = SCALAR_VAL(1.0);
       p[i][0] = SCALAR_VAL(0.0);
@@ -130,10 +125,7 @@ void kernel_adi(int tsteps, int n,
         u[i][j] = p[i][j] * u[i][j+1] + q[i][j];
       }
     }
-
-#pragma omp barrier
   }
-}
 #pragma endscop
 }
 

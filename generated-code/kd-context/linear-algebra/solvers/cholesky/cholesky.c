@@ -1,5 +1,5 @@
-/*******************************************************
- * This version is stamped on May 10, 2016
+/**************************/
+/* This version is stamped on May 10, 2016
  *
  * Contact:
  *   Louis-Noel Pouchet <pouchet.ohio-state.edu>
@@ -89,7 +89,6 @@ void kernel_cholesky(int n,
 #pragma scop
   for (i = 0; i < _PB_N; i++) {
      //j<i
-#pragma omp parallel for private(k) schedule(static)
      for (j = 0; j < i; j++) {
         for (k = 0; k < j; k++) {
            A[i][j] -= A[i][k] * A[j][k];
@@ -97,6 +96,7 @@ void kernel_cholesky(int n,
         A[i][j] /= A[j][j];
      }
      // i==j case
+#pragma omp simd
      for (k = 0; k < i; k++) {
         A[i][i] -= A[i][k] * A[i][k];
      }

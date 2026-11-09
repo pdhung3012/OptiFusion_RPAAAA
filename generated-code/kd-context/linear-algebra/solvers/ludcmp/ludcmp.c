@@ -1,6 +1,3 @@
-/*********************************************************/
-/* POLYBENCH/LU Decomposition with forward/backward subst. */
-/*********************************************************/
 /**
  * This version is stamped on May 10, 2016
  *
@@ -16,7 +13,6 @@
 #include <unistd.h>
 #include <string.h>
 #include <math.h>
-#include <omp.h>
 
 /* Include polybench common header. */
 #include <polybench.h>
@@ -106,51 +102,42 @@ void kernel_ludcmp(int n,
   DATA_TYPE w;
 
 #pragma scop
-#pragma omp parallel default(none) shared(A,b,x,y,n) private(i,j,k,w)
-  {
-    /* LU decomposition: loop-carried dependencies across i prevent parallelization of i.
-       Keep i sequential; parallelize inner k reductions. */
-#pragma omp single
-    {
-      for (i = 0; i < _PB_N; i++) {
-
-        for (j = 0; j < i; j++) {
-          w = A[i][j];
-#pragma omp parallel for default(none) shared(A,i,j) private(k) reduction(-:w)
-          for (k = 0; k < j; k++) {
-            w -= A[i][k] * A[k][j];
-          }
-          A[i][j] = w / A[j][j];
-        }
-
-        for (j = i; j < _PB_N; j++) {
-          w = A[i][j];
-#pragma omp parallel for default(none) shared(A,i,j) private(k) reduction(-:w)
-          for (k = 0; k < i; k++) {
-            w -= A[i][k] * A[k][j];
-          }
-          A[i][j] = w;
-        }
-      }
-
-      /* Forward substitution: loop-carried dependency across i. */
-      for (i = 0; i < _PB_N; i++) {
-        w = b[i];
-#pragma omp parallel for default(none) shared(A,y,i) private(j) reduction(-:w)
-        for (j = 0; j < i; j++)
-          w -= A[i][j] * y[j];
-        y[i] = w;
-      }
-
-      /* Backward substitution: loop-carried dependency across i. */
-      for (i = _PB_N-1; i >= 0; i--) {
-        w = y[i];
-#pragma omp parallel for default(none) shared(A,x,i) private(j) reduction(-:w)
-        for (j = i+1; j < _PB_N; j++)
-          w -= A[i][j] * x[j];
-        x[i] = w / A[i][i];
-      }
+  for (i = 0; i < _PB_N; i++) {
+    for (j = 0; j <i; j++) {
+       w = A[i][j];
+       for (k = 0; k < j; k++) {
+          w -= A[i][k] * A[k][j];
+       }
+        A[i][j] = w / A[j][j];
     }
+   for (j = i; j < _PB_N; j++) {
+       w = A[i][j];
+       for (k = 0; k < i; k++) {
+          w -= A[i][k] * A[k][j];
+       }
+       A[i][j] = w;
+    }
+  }
+
+#pragma omp parallel
+  {
+#pragma omp for schedule(static)
+  for (i = 0; i < _PB_N; i++) {
+     w = b[i];
+#pragma omp simd
+     for (j = 0; j < i; j++)
+        w -= A[i][j] * y[j];
+     y[i] = w;
+  }
+
+#pragma omp for schedule(static)
+   for (i = _PB_N-1; i >=0; i--) {
+     w = y[i];
+#pragma omp simd
+     for (j = i+1; j < _PB_N; j++)
+        w -= A[i][j] * x[j];
+     x[i] = w / A[i][i];
+  }
   }
 #pragma endscop
 

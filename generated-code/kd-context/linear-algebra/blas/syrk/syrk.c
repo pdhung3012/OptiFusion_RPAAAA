@@ -1,12 +1,12 @@
-/**
- * This version is stamped on May 10, 2016
- *
- * Contact:
- *   Louis-Noel Pouchet <pouchet.ohio-state.edu>
- *   Tomofumi Yuki <tomofumi.yuki.fr>
- *
- * Web address: http://polybench.sourceforge.net
- */
+/*********************************************************************************/
+/*  This version is stamped on May 10, 2016                                      */
+/*                                                                               */
+/*  Contact:                                                                     */
+/*    Louis-Noel Pouchet <pouchet.ohio-state.edu>                                */
+/*    Tomofumi Yuki <tomofumi.yuki.fr>                                           */
+/*                                                                               */
+/*  Web address: http://polybench.sourceforge.net                                 */
+/*********************************************************************************/
 /* syrk.c: this file is part of PolyBench/C */
 
 #include <stdio.h>
@@ -80,11 +80,12 @@ void kernel_syrk(int n, int m,
 //A is NxM
 //C is NxN
 #pragma scop
-#pragma omp parallel for private(j,k) schedule(static)
+#pragma omp parallel for default(none) private(j,k) shared(alpha,beta,C,A) schedule(static)
   for (i = 0; i < _PB_N; i++) {
     for (j = 0; j <= i; j++)
       C[i][j] *= beta;
     for (k = 0; k < _PB_M; k++) {
+      #pragma omp simd
       for (j = 0; j <= i; j++)
         C[i][j] += alpha * A[i][k] * A[j][k];
     }

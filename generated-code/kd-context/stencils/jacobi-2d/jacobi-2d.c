@@ -1,16 +1,13 @@
-/********************************************************/
-/* YOU CAN SAFELY IGNORE THIS COMMENT BLOCK */
-/* */
-/* This version is stamped on May 10, 2016 */
-/* */
-/* Contact: */
-/*   Louis-Noel Pouchet <pouchet.ohio-state.edu> */
-/*   Tomofumi Yuki <tomofumi.yuki.fr> */
-/* */
-/* Web address: http://polybench.sourceforge.net */
-/* */
+/*******************************************************                                                               
+ * This version is stamped on May 10, 2016
+ *
+ * Contact:
+ *   Louis-Noel Pouchet <pouchet.ohio-state.edu>
+ *   Tomofumi Yuki <tomofumi.yuki.fr>
+ *
+ * Web address: http://polybench.sourceforge.net
+ */
 /* jacobi-2d.c: this file is part of PolyBench/C */
-/********************************************************/
 
 #include <stdio.h>
 #include <unistd.h>
@@ -73,7 +70,7 @@ void kernel_jacobi_2d(int tsteps,
   int t, i, j;
 
 #pragma scop
-#pragma omp parallel default(none) shared(A,B) private(t,i,j)
+#pragma omp parallel default(none) private(t,i,j) shared(A,B)
   for (t = 0; t < _PB_TSTEPS; t++)
     {
 #pragma omp for schedule(static)
