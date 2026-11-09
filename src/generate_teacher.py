@@ -1,167 +1,160 @@
+"""Generate OpenMP-optimized teacher examples using a priority-ordered prompt."""
 
-import os
-import json
 import argparse
+import json
+import os
 from pathlib import Path
 from openai import OpenAI
 
-f1=open("/home/hungphd/openai_key.txt", "r", encoding="utf-8")
-api_key=f1.read().strip()
-f1.close()
-
-# input("aaaa")
-
-client = OpenAI(api_key=api_key)
-
 
 def build_prompt(sample, knowledge_content):
-    return f"""You are optimizing C code using OpenMP pragma directives ONLY.
+    return f"""You are an expert HPC compiler optimizing C code for CPU execution
+with OpenMP. Prioritize loop transformations that improve locality and
+parallelism, then apply suitable OpenMP directives and clauses.
 
-Task:
-Insert or adjust suitable '#pragma omp' directives within regions delimited by
-'#pragma scope' and '#pragma endscop' (preserve these marker lines unchanged).
-Do not modify, reorder, remove, or introduce any C statements, declarations,
-expressions, loops, variable names, or function signatures. Do not apply
-non-pragma source transformations such as tiling, fusion, interchange,
-skewing, or unrolling.
+Task and scope:
+- Optimize only code in regions delimited by '#pragma scope' and
+  '#pragma endscop'. Preserve these marker lines unchanged.
+- Preserve function signatures, program inputs/outputs, and original semantics.
+- You MAY restructure loops and adjust associated C statements within the
+  marked regions when needed for the priority loop transformations below.
+- Do not modify code outside the marked regions. Do not add dependencies,
+  data races, invalid OpenMP directives, or unsupported transformations.
 
-IMPORTANT OPENMP OPTIMIZATION STRATEGIES (examine ALL categories):
-1. Parallelism optimization:
-   - Consider '#pragma omp parallel for', '#pragma omp for', and
-     'collapse(n)' for independent nested loops with valid canonical forms.
-   - Avoid oversubscription and inappropriate nested parallel regions.
-2. Scheduling optimization:
-   - Consider 'schedule(static)', 'schedule(dynamic[, chunk])',
-     'schedule(guided[, chunk])', or 'schedule(runtime)' based on
-     iteration cost, locality, and workload imbalance.
-3. Synchronization optimization:
-   - Consider 'nowait' when no cross-loop dependency or required barrier exists.
-   - Use 'atomic' or 'critical' only when needed for correctness; do not
-     remove required synchronization or introduce races.
-4. Data-sharing optimization:
-   - Use 'private', 'firstprivate', 'lastprivate', 'shared', and
-     'default(none)' where valid to express correct variable sharing.
-   - Check variable lifetime, initialization, and per-thread state.
-5. Reduction optimization:
-   - Consider 'reduction(+:x)', 'reduction(*:x)', 'reduction(max:x)',
-     'reduction(min:x)', or other appropriate reductions for recognized
-     independent accumulation patterns.
-   - Do not add a reduction when it is incompatible with existing C code
-     or would require changing statements; consider numerical effects.
-6. SIMD vectorization:
-   - Consider '#pragma omp simd' or '#pragma omp parallel for simd',
-     along with 'simdlen(n)', 'safelen(n)', or 'aligned(...)' ONLY when
-     loop dependencies and alignment assumptions justify them.
-7. Thread management optimization:
-   - Consider 'num_threads(n)' and 'proc_bind(close/spread/primary)'
-     only when workload characteristics and hardware assumptions justify
-     explicit settings; prefer portability over arbitrary constants.
+HIGHEST PRIORITY — LOOP TRANSFORMATIONS (examine FIRST, in this order):
+1. Loop tiling / blocking:
+   - First investigate tiling of suitable nested loops to improve cache
+     locality, data reuse, and parallel granularity.
+   - Choose legal tile sizes based on loop bounds and available knowledge;
+     handle boundary tiles and partial iterations correctly.
+   - Use an OpenMP tile construct only if the specified target supports it;
+     otherwise implement legal C loop blocking with OpenMP parallelization.
+2. Loop fusion:
+   - Next investigate merging adjacent loops with compatible iteration
+     spaces to improve locality and reduce overhead.
+   - Fuse ONLY if there is no dependence, ordering, side effect, or
+     synchronization requirement that would make the fused loop incorrect.
+3. Loop skewing:
+   - Next investigate skewing loops with carried dependencies where an
+     affine change of iteration space can expose legal parallelism or improve
+     locality, potentially in combination with tiling.
+   - Derive correct transformed bounds and ensure all original iterations
+     execute exactly as required, respecting dependency order.
 
-Selection and correctness rules:
-- Evaluate every category, but apply ONLY those that are demonstrably safe,
-  applicable, and likely beneficial; do NOT force all seven categories.
-- Prefer appropriate combined constructs rather than redundant nested pragmas.
-- Never parallelize loops with loop-carried dependencies unless the directive
-  preserves the original behavior. Avoid data races, deadlocks, incorrect
-  barriers, illegal data-sharing attributes, and unsupported directive placement.
-- Use syntactically valid OpenMP directives and clauses compatible with the
-  target compiler. If a proposed optimization requires C-code changes,
-  do not perform it; choose another pragma-only optimization or leave it as is.
-- Preserve the original program's semantics and all C code verbatim.
-- Keep all edits inside the marked scope regions. If no safe pragma-level
-  optimization is applicable, return the original code unchanged.
+IMPORTANT: These three are loop transformations, not generally standalone
+OpenMP pragmas. Loop fusion and skewing may require rewriting C loops. Do
+NOT falsely claim that adding '#pragma omp' alone performs them. Prioritize
+them in analysis and implementation when legal and beneficial; do not force
+a transformation that is unsafe or counterproductive.
+
+SECOND PRIORITY — OPENMP DIRECTIVE-LEVEL OPTIMIZATIONS:
+4. Parallelism: 'parallel for', 'for', 'collapse(n)' on independent loops;
+   avoid nested-region overhead and invalid parallel dependencies.
+5. Scheduling: 'schedule(static)', 'schedule(dynamic[, chunk])',
+   'schedule(guided[, chunk])', or 'schedule(runtime)' as warranted.
+6. Synchronization: minimize barriers with 'nowait' only when safe;
+   use 'atomic'/'critical' where correctness requires them.
+7. Data sharing: use 'private', 'firstprivate', 'lastprivate', 'shared',
+   and 'default(none)' correctly; check initialization and lifetime.
+8. Reductions: use 'reduction(+:x)', 'reduction(*:x)',
+   'reduction(max:x)', or 'reduction(min:x)' for legal reductions;
+   consider floating-point reassociation and numerical requirements.
+9. SIMD: use 'simd', 'parallel for simd', 'simdlen(n)', 'safelen(n)',
+   and 'aligned(...)' only when dependence and alignment permit.
+10. Thread management: consider 'num_threads(n)' and
+    'proc_bind(close/spread/primary)' when justified; avoid arbitrary
+    hardware-specific constants that harm portability.
+
+Optimization decision process:
+- FIRST examine tiling, fusion, and skewing, in that priority order. Apply
+  all that are legally compatible and likely to help, before considering
+  additional OpenMP pragma-level optimizations.
+- THEN examine all seven OpenMP categories, selecting only beneficial,
+  legal, compatible directives and clauses.
+- Maintain correct dependence order, variable scope, data sharing, and
+  synchronization. Never assume independent iterations without evidence.
+- Do not change observable behavior. If no safe optimization is available,
+  return the original code unchanged.
+- Keep all transformations strictly within the marked scope regions.
 
 Original code:
 {sample["original_code"]}
 
-Expert Knowledge (use when consistent with the constraints above):
+Expert Knowledge (use when consistent with correctness and scope):
 {knowledge_content}
 
 Output requirements:
-Return ONLY the complete resulting C code, with no explanations, comments
-about your choices, Markdown fences, or surrounding text.
+Return ONLY the complete optimized C code. No explanations, Markdown code
+fences, or surrounding text. Preserve the '#pragma scope' and
+'#pragma endscop' markers exactly as supplied.
 """
 
-import os
-from openai import OpenAI
 
-# Set your OpenAI API key
-
-# os.environ["OPENAI_API_KEY"] = ""
-
-
-def generate_teacher_data(input_file, output_file, model,kd_documentation):
-    Path(output_file).parent.mkdir(
-        parents=True, exist_ok=True
-    )
-
-    f1=open(kd_documentation, "r", encoding="utf-8")
-    knowledge_content=f1.read()
-    f1.close()
+def read_samples(input_file):
+    """Accept either a JSON array or newline-delimited JSON objects (JSONL)."""
+    content = Path(input_file).read_text(encoding="utf-8")
+    try:
+        data = json.loads(content)
+    except json.JSONDecodeError:
+        data = [json.loads(line) for line in content.splitlines() if line.strip()]
+    if isinstance(data, dict):
+        data = [data]
+    if not isinstance(data, list):
+        raise ValueError("Input must be a JSON array or JSONL objects")
+    return data
 
 
-    with open(input_file, encoding="utf-8") as src, \
-         open(output_file, "w", encoding="utf-8") as dst:
+def generate_teacher_data(input_file, output_file, model, kd_documentation, api_key_file=None):
+    knowledge_content = Path(kd_documentation).read_text(encoding="utf-8")
+    # api_key = os.getenv("OPENAI_API_KEY")
+    if api_key_file:
+        # api_key = Path(api_key_file).read_text(encoding="utf-8").strip()
+        f1=open(api_key_file, "r", encoding="utf-8")
+        api_key=f1.read().strip()
+        f1.close()
+        # print('go here')
+    if not api_key:
+        raise ValueError("Set OPENAI_API_KEY or provide --api_key_file")
+    # print(api_key)
+    # input('aaaa')
+    client = OpenAI(api_key=api_key)
+    samples = read_samples(input_file)
+    Path(output_file).parent.mkdir(parents=True, exist_ok=True)
 
-        data = json.load(src)
-        for index, sample in enumerate(data):
-            # sample = json.loads(line)
-            prompt = build_prompt(sample,knowledge_content)
-
+    with open(output_file, "w", encoding="utf-8") as dst:
+        for index, sample in enumerate(samples):
+            prompt = build_prompt(sample, knowledge_content)
             response = client.responses.create(
                 model=model,
                 input=[
                     {
                         "role": "system",
-                        "content": (
-                            "You are an expert HPC compiler "
-                            "optimization assistant."
-                        ),
+                        "content": "You are an expert HPC compiler optimization assistant."
                     },
-                    {
-                        "role": "user",
-                        "content": prompt,
-                    },
+                    {"role": "user", "content": prompt},
                 ],
             )
-
             optimized_code = response.output_text.strip()
-
             record = {
                 "id": index,
-                "code_location": sample['code_location'],
+                "code_location": sample["code_location"],
                 "completion": optimized_code,
                 "teacher": model,
                 "verified": False,
             }
-
-            dst.write(json.dumps(record) + "\n")
+            dst.write(json.dumps(record, ensure_ascii=False) + "\n")
+            dst.flush()
             print("Generated:", index)
 
-knowledge_content=''
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--input", default="input_original.json"
-    )
-    parser.add_argument(
-        "--kd_documentation", default="../expert_knowledge_documentation_genral.txt"
-    )
-
-    # parser.add_argument(
-    #     "--api_key_location", default="/home/hungphd/openai_key.txt"
-    # )
-
-    parser.add_argument(
-        "--output", default="output_teacher_gpt-5.2.json"
-    )
-    parser.add_argument(
-        "--model", default="gpt-5.2"
-    )
-
+    parser.add_argument("--input", default="input_original.json")
+    parser.add_argument("--kd_documentation", default="../expert_knowledge_documentation_genral.txt")
+    parser.add_argument("--output", default="output_teacher_gpt-5.2_v2.json")
+    parser.add_argument("--model", default="gpt-5.2")
+    parser.add_argument("--api_key_file", default="/home/hungphd/openai_key.txt",
+                        help="Optional path to API key file, instead of OPENAI_API_KEY")
     args = parser.parse_args()
-
-    generate_teacher_data(
-        args.input, args.output, args.model,args.kd_documentation
-    )
+    generate_teacher_data(args.input, args.output, args.model,
+                          args.kd_documentation, args.api_key_file)
