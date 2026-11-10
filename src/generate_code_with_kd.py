@@ -58,13 +58,13 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "--input_json",
-        default="output_teacher_gpt-5.2_v2.json",
+        default="output_teacher_gemini-4-argon.jsonl",
         help="Path to input JSON file"
     )
 
     parser.add_argument(
         "--folder_output",
-        default="../generated-code/kd-context-v2.0/",
+        default="../generated-code/kd-context-gemini-4-argon/",
         help="Output directory"
     )
 
