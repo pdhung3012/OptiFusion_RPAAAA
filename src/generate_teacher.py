@@ -151,7 +151,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", default="input_original.json")
     parser.add_argument("--kd_documentation", default="../expert_knowledge_documentation_genral.txt")
-    parser.add_argument("--output", default="output_teacher_gpt-5.2_v2.json")
+    parser.add_argument("--output", default="output_teacher_gpt-6-astra.json")
     parser.add_argument("--model", default="gpt-5.2")
     parser.add_argument("--api_key_file", default="/home/hungphd/openai_key.txt",
                         help="Optional path to API key file, instead of OPENAI_API_KEY")
