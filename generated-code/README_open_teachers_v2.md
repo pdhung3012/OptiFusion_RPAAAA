@@ -130,10 +130,30 @@ Usable KD methods per teacher:
 | Kimi-K2.7-Code | ✓ | ✓ | ✓ | ✗ (tokenizer mismatch) |
 | Hermes-4-405B | ✓ | ⚠️ see below | ⚠️ see below | ✗ (tokenizer mismatch) |
 
-To use the GLM/Kimi/Hermes/DeepSeek/Nemotron logprobs as KL targets you need
-cross-tokenizer alignment (ULD, DSKD-style methods) or self-hosted teachers
-with re-tokenization — those are Phase-2 work. We continue capturing top-K
-logprobs for all logprob-capable teachers for future ablation.
+To use the GLM/Kimi logprobs as KL targets you need cross-tokenizer
+alignment methods. The committee round on 2026-11-24 (see
+`scripts/consult_committee_crosstok_kd.py`) established:
+
+- **No published method is plug-and-play for top-K=20 API logprobs.** ULD
+  (Boizard et al. 2024, arXiv 2402.12030) needs the **full** teacher
+  distribution, not a top-K truncation; re-normalizing top-K is not ULD.
+  DSKD (Zhang et al. 2024), MiniLLM, GKD and GOLD need teacher **hidden
+  states** or an **online** teacher — neither is exposed by OpenRouter.
+  MinED-style surface alignment is brittle for code (BPE splits `#pragma`
+  differently across tokenizers).
+- **Expected gain over pure SeqKD + SFT-on-reasoning is small** — committee
+  estimates range from "percent-of-a-percent" to "0-2 pass@1 points" for a
+  narrow structured code task. The dominant signal is **which patch** the
+  teacher emits, not soft labels over tokens.
+- **Qwen3.8-Max → Qwen2.5-Coder is the only clean white-box path in this
+  dataset** (shared tokenizer family). Run that as the first ablation; only
+  reach for cross-tokenizer KD if it shows a clear lift AND someone writes
+  the research-grade code (do not expect to).
+
+GLM and Kimi logprobs are therefore retained as **optional ablation /
+dataset-curation signal** (uncertainty weighting, teacher-consensus
+scoring, vLLM `prompt_logprobs` re-scoring of existing patches), NOT as
+planned white-box KL training input.
 
 ## Provider pinning (retry pass, 2026-11-23)
 
@@ -199,7 +219,12 @@ Post-processing applied (`scripts/normalize_hermes.py`):
    now reads `body_only_converted_from_full_file` on these cells.
 2. **`response.logprobs` dropped.** Hermes top-K are over the Llama-3.1 vocab
    and unusable for white-box KL against the Qwen student (see tokenizer
-   matrix above). `response._logprobs_dropped` records the reason.
+   matrix above). An additional reason surfaced by the 2026-11-24 committee
+   round on cross-tokenizer KD: Hermes logprobs were captured over the
+   full-file rewrite, so after the body-only conversion in step 1 they are
+   **stale against the patched target** regardless of tokenizer family — they
+   can't be aligned to the on-disk `.c` even in principle.
+   `response._logprobs_dropped` records the reason.
 3. **Compact JSON serialization.** Dropped `indent=2`, saves ~55% file size.
 4. **`reasoning_text` and `content_raw` are preserved verbatim** — no
    truncation. The SFT-on-reasoning and SeqKD signals are unaffected.
