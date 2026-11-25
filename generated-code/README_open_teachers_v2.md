@@ -300,6 +300,75 @@ needs those kernels specifically, we re-run those cells at T=0.7 with N=4
 samples (rejection fine-tuning) as a separate pass. See
 `scripts/consult_committee_coverage.py` for the memo and responses.
 
+## Latency and cost: no-doc vs with-doc (per-teacher)
+
+Wall-clock + token + cost per cell, measured over all 30 kernels per
+(teacher, arm). The with-doc arm adds ~6700 prompt tokens (the KD
+polyhedral guide, ~34K chars). Medians and means reported.
+
+### Latency (seconds per cell)
+
+| teacher | n | no-doc median | no-doc mean | n | with-doc median | with-doc mean | med ratio wd/nd |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| DeepSeek-R1-0528 | 30 | 458.8 | 454.3 | 30 | 415.9 | 406.6 | 0.91× |
+| Nemotron-3-Super | 30 | 15.7 | 19.9 | 30 | 29.5 | 35.0 | 1.88× |
+| Qwen3.8-Max-0902 | 30 | 87.0 | 95.9 | 30 | 124.7 | 135.3 | 1.43× |
+| GLM-5.3 | 30 | 6.8 | 9.1 | 30 | 10.9 | 15.0 | 1.60× |
+| Kimi-K2.7-Code | 30 | 261.7 | 747.0 | 30 | 263.0 | 746.4 | 1.00× |
+| Hermes-4-405B | 30 | 194.0 | 209.6 | 30 | 161.9 | 218.2 | 0.83× |
+| **All teachers** | **180** | **124.7** | **256.0** | **180** | **129.5** | **259.4** | **1.04×** |
+
+Headline: overall latency barely changes (1.04× median across all cells)
+even though with-doc adds ~5× prompt tokens. The effect is **highly
+per-teacher**: Hermes and DeepSeek-R1 *speed up* with the doc (likely
+less exploratory reasoning once the methodology is prescribed), while
+Nemotron, GLM and Qwen take 40-90% longer.
+
+### Token usage (median per cell)
+
+| teacher | nd prompt | wd prompt | nd completion | wd completion | nd reasoning | wd reasoning |
+|---|---:|---:|---:|---:|---:|---:|
+| DeepSeek-R1-0528 | 1,764 | 8,466 | 10,594 | 9,035 | 9,722 | 8,379 |
+| Nemotron-3-Super | 1,792 | 8,650 | 5,000 | 11,145 | 3,853 | 10,582 |
+| Qwen3.8-Max-0902 | 1,834 | 8,610 | 5,276 | 5,758 | 3,906 | 4,969 |
+| GLM-5.3 | 1,693 | 8,318 | 1,340 | 1,622 | 60 | 194 |
+| Kimi-K2.7-Code | 1,660 | 8,220 | 15,284 | 17,842 | 13,638 | 16,567 |
+| Hermes-4-405B | 1,774 | 8,400 | 7,616 | 6,608 | 0 | 0 |
+| **All teachers** | **1,770** | **8,480** | **7,528** | **7,970** | **3,882** | **6,216** |
+
+Prompt uniformly jumps ~4.8× (the KD doc size). The interesting
+asymmetry is in output: completion tokens barely change in aggregate
+(+6%), but reasoning tokens jump +60% — the doc shifts work from
+output generation into internal CoT. Per-teacher extremes: Nemotron
++175% reasoning tokens with the doc; DeepSeek-R1 *drops* 14%.
+
+Hermes `reasoning_tokens=0` is a provider-reporting artifact (Nebius
+does not return `usage.reasoning_tokens` for this model). The actual
+reasoning content is captured in `response.reasoning_text` — see the
+Hermes dual-provenance section above.
+
+### Cost (USD per cell, OpenRouter billed)
+
+| teacher | nd median | nd mean | wd median | wd mean | wd/nd median |
+|---|---:|---:|---:|---:|---:|
+| DeepSeek-R1-0528 | $0.0237 | $0.0235 | $0.0236 | $0.0236 | 1.00× |
+| Nemotron-3-Super | $0.0021 | $0.0028 | $0.0051 | $0.0059 | 2.41× |
+| Qwen3.8-Max-0902 | $0.0361 | $0.0384 | $0.0524 | $0.0565 | 1.45× |
+| GLM-5.3 | $0.0050 | $0.0056 | $0.0065 | $0.0072 | 1.31× |
+| Kimi-K2.7-Code | $0.0548 | $0.0609 | $0.0673 | $0.0660 | 1.23× |
+| Hermes-4-405B | $0.0248 | $0.0249 | $0.0278 | $0.0287 | 1.12× |
+| **All teachers** | **$0.0235** | **$0.0260** | **$0.0252** | **$0.0313** | **1.07×** |
+
+The 5× prompt-token increase only lifts cost 7% in aggregate because
+prompt tokens are much cheaper than output+reasoning tokens for most
+of these teachers. Nemotron is the outlier at +141% because its output
+also grew (completion +123%, reasoning +175%).
+
+Rough cost to reproduce the full v2 dataset at 2026-11-24 OpenRouter
+rates: ~$9.40 (no-doc, 180 cells) + ~$11.30 (with-doc, 180 cells)
+≈ **$20 total** for 360 KD-ready cells with reasoning traces and
+logprobs where available.
+
 ## Known gaps
 
 - Reasoning-token-level logprobs: never exposed by OpenRouter for any model.
